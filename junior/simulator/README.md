@@ -6,5 +6,5 @@ patch; mapped switches light blue and the active one green.
 
 Not started as a shared component. The BOSS GT-1000 proof of concept in
 [../devices/boss_gt-1000/](../devices/boss_gt-1000/) has a working simulator
-page in `setlist/templates/setlist/unit.html`; the device-neutral version will
+page in `profiles/templates/profiles/unit.html`; the device-neutral version will
 be extracted from it.

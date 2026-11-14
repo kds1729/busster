@@ -25,7 +25,7 @@ def unit(request):
     """The floor-unit simulator page."""
     style = getattr(settings, "GT1000_PATCH_STYLE", "core")
     songs = [_song_payload(s, style) for s in Song.objects.prefetch_related("slots").order_by("name")]
-    return render(request, "setlist/unit.html", {"songs_json": json.dumps(songs), "slot_count": SLOT_COUNT})
+    return render(request, "profiles/unit.html", {"songs_json": json.dumps(songs), "slot_count": SLOT_COUNT})
 
 
 @require_POST

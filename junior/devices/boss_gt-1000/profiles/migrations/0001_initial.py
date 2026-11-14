@@ -34,7 +34,7 @@ class Migration(migrations.Migration):
                 ('position', models.PositiveSmallIntegerField(help_text='Footswitch number, 1 to 8.', validators=[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(8)])),
                 ('patch', models.PositiveSmallIntegerField(help_text='0-based patch index: 0-249 user (U001/U01-1 ...), 250-499 preset.', validators=[django.core.validators.MinValueValidator(0), django.core.validators.MaxValueValidator(499)])),
                 ('label', models.CharField(blank=True, help_text='e.g. "Clean intro", "Solo".', max_length=100)),
-                ('song', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='slots', to='setlist.song')),
+                ('song', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='slots', to='profiles.song')),
             ],
             options={
                 'ordering': ['song', 'position'],

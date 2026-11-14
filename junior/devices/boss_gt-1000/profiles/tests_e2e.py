@@ -4,8 +4,8 @@ live test server and a throwaway test database.
 
 Optional. Skipped unless E2E=1 is set:
 
-    E2E=1 uv run python manage.py test setlist.tests_e2e
-    E2E=1 E2E_HEADED=1 uv run python manage.py test setlist.tests_e2e   # watch it
+    E2E=1 uv run python manage.py test profiles.tests_e2e
+    E2E=1 E2E_HEADED=1 uv run python manage.py test profiles.tests_e2e   # watch it
 
 Needs the "e2e" dependency group (uv sync --group e2e) and Google Chrome
 installed. Nothing is sent to a GT-1000: the MIDI layer is mocked inside the
@@ -206,13 +206,13 @@ class SimulatorE2ETests(StaticLiveServerTestCase):
         p.fill("#id_username", "admin")
         p.fill("#id_password", "pw")
         p.click("input[type=submit]")
-        p.goto(self.live_server_url + "/admin/setlist/song/add/")
+        p.goto(self.live_server_url + "/admin/profiles/song/add/")
         p.fill("#id_name", "new song")
         p.fill("#id_slots-0-position", "1")
         p.fill("#id_slots-0-patch", "60")
         p.fill("#id_slots-0-label", "clean")
         p.click("input[name=_save]")
-        p.wait_for_url("**/admin/setlist/song/")
+        p.wait_for_url("**/admin/profiles/song/")
 
         slot = Slot.objects.get(song__name="new song")
         self.assertEqual((slot.patch, slot.patch_name), (60, "GIG READY"))

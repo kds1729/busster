@@ -50,13 +50,13 @@ class SelectSlotViewTests(TestCase):
         self.slot = Slot.objects.create(song=self.song, position=1, patch=1, label="Clean")
 
     def test_unit_page_renders(self):
-        r = self.client.get(reverse("setlist:unit"))
+        r = self.client.get(reverse("profiles:unit"))
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Test Song")
 
     @mock.patch.object(midi.output, "send")
     def test_select_sends_patch(self, send):
-        r = self.client.post(reverse("setlist:select_slot", args=[self.slot.id]))
+        r = self.client.post(reverse("profiles:select_slot", args=[self.slot.id]))
         self.assertEqual(r.status_code, 200)
         data = r.json()
         self.assertTrue(data["ok"])
@@ -66,12 +66,12 @@ class SelectSlotViewTests(TestCase):
 
     @mock.patch.object(midi.output, "send", side_effect=ConnectionError("no port"))
     def test_select_reports_missing_device(self, send):
-        r = self.client.post(reverse("setlist:select_slot", args=[self.slot.id]))
+        r = self.client.post(reverse("profiles:select_slot", args=[self.slot.id]))
         self.assertEqual(r.status_code, 503)
         self.assertFalse(r.json()["ok"])
 
     def test_select_requires_post(self):
-        r = self.client.get(reverse("setlist:select_slot", args=[self.slot.id]))
+        r = self.client.get(reverse("profiles:select_slot", args=[self.slot.id]))
         self.assertEqual(r.status_code, 405)
 
 
@@ -121,7 +121,7 @@ class AdminPatchNameTests(TestCase):
     @mock.patch.object(midi, "read_patch_name", return_value="GIG READY")
     def test_slot_save_reads_name(self, read):
         song = Song.objects.create(name="s")
-        r = self.client.post(reverse("admin:setlist_slot_add"), {"song": song.id, "position": 1, "patch": 60, "label": ""})
+        r = self.client.post(reverse("admin:profiles_slot_add"), {"song": song.id, "position": 1, "patch": 60, "label": ""})
         self.assertEqual(r.status_code, 302)
         self.assertEqual(Slot.objects.get().patch_name, "GIG READY")
         read.assert_called_once_with(60)
@@ -129,6 +129,6 @@ class AdminPatchNameTests(TestCase):
     @mock.patch.object(midi, "read_patch_name", side_effect=ConnectionError("no unit"))
     def test_slot_save_without_unit_still_saves(self, read):
         song = Song.objects.create(name="s")
-        r = self.client.post(reverse("admin:setlist_slot_add"), {"song": song.id, "position": 1, "patch": 60, "label": ""}, follow=True)
+        r = self.client.post(reverse("admin:profiles_slot_add"), {"song": song.id, "position": 1, "patch": 60, "label": ""}, follow=True)
         self.assertEqual(Slot.objects.get().patch_name, "")
         self.assertContains(r, "could not read the patch name")

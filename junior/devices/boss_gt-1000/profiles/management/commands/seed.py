@@ -14,8 +14,8 @@ import random
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from setlist import midi
-from setlist.models import USER_PATCHES, Slot, Song
+from profiles import midi
+from profiles.models import USER_PATCHES, Slot, Song
 
 SAMPLE_SONGS = [("song1", 4), ("song2", 5), ("song3", 6)]
 

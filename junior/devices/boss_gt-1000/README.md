@@ -26,7 +26,7 @@ patch list between parts of a song is not workable on stage.
 - On the floor, pick the song with **up/down switches**, and the unit loads
   switch 1's patch immediately. Each switch press loads its patch. That's it.
 - All configuration happens on the laptop. The floor unit only holds the uploaded
-  setlist, shows the current song and patch, and sends MIDI. No editing on the
+  profiles, shows the current song and patch, and sends MIDI. No editing on the
   device.
 
 This proof of concept runs entirely on the laptop. The web page stands in for the
@@ -137,7 +137,7 @@ uv run python manage.py runserver
 Then:
 
 - **Simulator:** http://127.0.0.1:8000/
-- **Admin:** http://127.0.0.1:8000/admin/ — add songs under *Setlist › Songs*.
+- **Admin:** http://127.0.0.1:8000/admin/ — add songs under *Profiles › Songs*.
   Each song has eight inline rows: switch number, patch index, label. The CORE and
   full-size patch numbers are shown read-only, and the patch name is filled from
   the unit when you save (a warning appears if the unit isn't connected; the slot
@@ -163,9 +163,9 @@ The Django secret key is read from `BUSSTER_SECRET_KEY` with a local-only defaul
 ### Tests
 
 ```bash
-uv run python manage.py test setlist                      # 17 unit tests, MIDI mocked
-E2E=1 uv run python manage.py test setlist.tests_e2e      # 8 Chrome end-to-end tests
-E2E=1 E2E_HEADED=1 uv run python manage.py test setlist.tests_e2e   # watch the browser
+uv run python manage.py test profiles                      # 17 unit tests, MIDI mocked
+E2E=1 uv run python manage.py test profiles.tests_e2e      # 8 Chrome end-to-end tests
+E2E=1 E2E_HEADED=1 uv run python manage.py test profiles.tests_e2e   # watch the browser
 ```
 
 The end-to-end suite needs the optional dependency group (`uv sync --group e2e`)
@@ -186,12 +186,12 @@ junior/devices/boss_gt-1000/
 ├── manage.py
 ├── pyproject.toml / uv.lock         (uv-managed dependencies)
 ├── config/                          (Django project: settings, urls)
-└── setlist/                         (the app)
+└── profiles/                         (the app)
     ├── models.py                    Song, Slot; patch number formatting for both units
     ├── midi.py                      bank/program mapping, patch-select send, SysEx name read
     ├── admin.py                     song editor; reads patch names on save
     ├── views.py / urls.py           simulator page, /api/select/<slot>/, /api/midi/
-    ├── templates/setlist/unit.html  the simulator (self-contained HTML/CSS/JS)
+    ├── templates/profiles/unit.html  the simulator (self-contained HTML/CSS/JS)
     ├── management/commands/seed.py  sample data
     ├── tests.py                     unit tests
     └── tests_e2e.py                 optional Chrome end-to-end tests
