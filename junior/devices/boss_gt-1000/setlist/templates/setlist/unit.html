@@ -1,0 +1,242 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Busster Jr</title>
+<style>
+  :root {
+    --enclosure: #1c1f24;
+    --enclosure-edge: #2c3038;
+    --screw: #4a4f58;
+    --text: #e6e8ec;
+    --muted: #8b919c;
+    --led-off: #2a2e35;
+    --led-mapped: #3b8bff;
+    --led-on: #3ecf8e;
+    --led-song: #3b8bff;
+    --lcd-bg: #0b1a12;
+    --lcd-fg: #9df5c2;
+    --switch: radial-gradient(circle at 35% 30%, #d8dbe0, #8c9099 55%, #5a5e66);
+    --switch-pressed: radial-gradient(circle at 35% 30%, #b8bbc0, #6c7079 55%, #44474e);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0a0b0d; color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
+  body { display: flex; align-items: center; justify-content: center; padding: 24px; }
+
+  .unit {
+    position: relative;
+    width: min(1180px, 100%);
+    background: linear-gradient(180deg, #23272e, var(--enclosure));
+    border: 2px solid var(--enclosure-edge);
+    border-radius: 18px;
+    padding: 28px 36px 36px;
+    box-shadow: 0 30px 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .screw { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: var(--screw);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,.8); }
+  .screw.tl { top: 12px; left: 12px; } .screw.tr { top: 12px; right: 12px; }
+  .screw.bl { bottom: 12px; left: 12px; } .screw.br { bottom: 12px; right: 12px; }
+
+  .top { display: flex; align-items: flex-end; gap: 24px; margin-bottom: 26px; }
+  .brand { font-weight: 900; letter-spacing: .06em; font-size: 22px; white-space: nowrap; }
+  .brand span { color: var(--led-on); }
+
+  .lcd {
+    flex: 1;
+    background: var(--lcd-bg);
+    color: var(--lcd-fg);
+    border: 3px solid #0d0f12;
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    box-shadow: inset 0 0 18px rgba(0,0,0,.8), 0 0 0 2px #2a2e35;
+    min-height: 92px;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 2px 20px;
+    text-shadow: 0 0 6px rgba(157,245,194,.35);
+  }
+  .lcd .song { font-size: 26px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lcd .line2 { font-size: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lcd .msg { font-size: 12px; opacity: .75; min-height: 1.2em; }
+  .lcd .msg.err { color: #ff8b8b; opacity: 1; }
+
+  /* ---- switch rows ---- */
+  .board { display: grid; grid-template-columns: 1fr auto; gap: 0 40px; align-items: end; }
+
+  .patches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 18px; }
+
+  .songs {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 18px;
+    padding: 0 0 54px 36px;          /* offset: raised above the patch row */
+    border-left: 2px dashed var(--enclosure-edge);
+    margin-bottom: 0;
+  }
+
+  .sw { display: flex; flex-direction: column; align-items: center; gap: 10px; background: none; border: 0; padding: 0;
+    color: var(--text); cursor: pointer; -webkit-user-select: none; user-select: none; }
+  .sw:disabled { cursor: default; }
+  .sw .led { width: 12px; height: 12px; border-radius: 50%; background: var(--led-off);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,.8); transition: background .08s, box-shadow .08s; }
+  .sw.mapped .led { background: var(--led-mapped); box-shadow: 0 0 8px var(--led-mapped), 0 0 18px rgba(59,139,255,.45); }
+  .sw.on .led { background: var(--led-on); box-shadow: 0 0 10px var(--led-on), 0 0 22px rgba(62,207,142,.55); }
+  .sw .cap {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: var(--switch);
+    border: 3px solid #3a3d44;
+    box-shadow: 0 6px 0 #33363c, 0 10px 14px rgba(0,0,0,.6), inset 0 2px 3px rgba(255,255,255,.5);
+    transition: transform .06s, box-shadow .06s;
+  }
+  .sw:active:not(:disabled) .cap, .sw.pressed .cap {
+    transform: translateY(5px);
+    background: var(--switch-pressed);
+    box-shadow: 0 1px 0 #33363c, 0 3px 6px rgba(0,0,0,.6), inset 0 2px 3px rgba(255,255,255,.3);
+  }
+  .sw .num { font-size: 12px; color: var(--muted); font-family: ui-monospace, Menlo, monospace; }
+  .sw.song .led { background: var(--led-off); }
+  .sw.song.pressed .led { background: var(--led-song); box-shadow: 0 0 10px var(--led-song); }
+  .sw.song .cap { width: 56px; height: 56px; }
+  .sw.song .label { font-size: 15px; letter-spacing: .05em; }
+
+  @media (max-width: 900px) {
+    .board { grid-template-columns: 1fr; }
+    .patches { grid-template-columns: repeat(4, 1fr); }
+    .songs { border-left: 0; border-top: 2px dashed var(--enclosure-edge); padding: 18px 0 0; margin-top: 18px;
+      justify-content: center; }
+  }
+</style>
+</head>
+<body>
+<div class="unit">
+  <div class="screw tl"></div><div class="screw tr"></div><div class="screw bl"></div><div class="screw br"></div>
+
+  <div class="top">
+    <div class="brand">BUSSTER <span>Jr</span></div>
+    <div class="lcd" id="lcd">
+      <div class="song" id="lcd-song">—</div>
+      <div class="line2" id="lcd-label"></div>
+      <div class="msg" id="lcd-msg"></div>
+    </div>
+  </div>
+
+  <div class="board">
+    <div class="patches" id="patches"></div>
+    <div class="songs">
+      <button class="sw song" id="song-down" title="Previous song (↑ / PageUp)">
+        <span class="led"></span><span class="cap"></span><span class="label">▲ SONG</span>
+      </button>
+      <button class="sw song" id="song-up" title="Next song (↓ / PageDown)">
+        <span class="led"></span><span class="cap"></span><span class="label">▼ SONG</span>
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const SONGS = {{ songs_json|safe }};
+  const SLOT_COUNT = {{ slot_count }};
+  const CSRF = "{{ csrf_token }}";
+
+  const state = { song: 0, active: null, busy: false };
+  const el = (id) => document.getElementById(id);
+
+  function song() { return SONGS[state.song] || null; }
+
+  function renderSwitches() {
+    const s = song();
+    const box = el("patches");
+    box.innerHTML = "";
+    for (let i = 0; i < SLOT_COUNT; i++) {
+      const slot = s ? s.slots[i] : null;
+      const b = document.createElement("button");
+      b.className = "sw" + (slot ? " mapped" : " empty") + (state.active === i ? " on" : "");
+      b.disabled = !slot;
+      b.dataset.index = i;
+      b.innerHTML =
+        `<span class="led"></span><span class="cap"></span>` +
+        `<span class="num">${i + 1}</span>`;
+      b.addEventListener("click", () => press(i));
+      box.appendChild(b);
+    }
+  }
+
+  function renderLcd(msg, isErr) {
+    const s = song();
+    el("lcd-song").textContent = s ? s.name : "";
+    const slot = s && state.active !== null ? s.slots[state.active] : null;
+    el("lcd-label").textContent = slot ? slot.display : "";
+    const m = el("lcd-msg");
+    m.textContent = msg || "";
+    m.className = "msg" + (isErr ? " err" : "");
+  }
+
+  function changeSong(delta) {
+    if (!SONGS.length) return;
+    state.song = (state.song + delta + SONGS.length) % SONGS.length;
+    flash(delta < 0 ? "song-down" : "song-up");
+    loadSong();
+  }
+
+  // Selecting a song always loads its switch 1 patch straight away.
+  function loadSong() {
+    state.active = null;
+    renderSwitches();
+    renderLcd("");
+    press(0);
+  }
+
+  function flash(id) {
+    const b = el(id);
+    b.classList.add("pressed");
+    setTimeout(() => b.classList.remove("pressed"), 120);
+  }
+
+  async function press(i) {
+    const s = song();
+    const slot = s && s.slots[i];
+    if (!slot || state.busy) return;
+    state.busy = true;
+    document.body.dataset.busy = "1";
+    state.active = i;
+    renderSwitches();
+    renderLcd("");
+    try {
+      const r = await fetch(`/api/select/${slot.id}/`, { method: "POST", headers: { "X-CSRFToken": CSRF } });
+      const d = await r.json();
+      if (d.ok) {
+        renderLcd("");
+      } else {
+        renderLcd(d.error || "send failed", true);
+      }
+    } catch (e) {
+      renderLcd("server unreachable", true);
+    } finally {
+      state.busy = false;
+      document.body.dataset.busy = "0";
+    }
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  el("song-down").addEventListener("click", () => changeSong(-1));
+  el("song-up").addEventListener("click", () => changeSong(+1));
+
+  document.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "INPUT") return;
+    if (e.key >= "1" && e.key <= "8") { press(parseInt(e.key, 10) - 1); e.preventDefault(); }
+    else if (e.key === "ArrowUp" || e.key === "PageUp") { changeSong(-1); e.preventDefault(); }
+    else if (e.key === "ArrowDown" || e.key === "PageDown") { changeSong(+1); e.preventDefault(); }
+  });
+
+  loadSong();
+</script>
+</body>
+</html>
