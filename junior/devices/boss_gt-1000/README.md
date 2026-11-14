@@ -43,7 +43,8 @@ floor unit, and the laptop sends the MIDI itself over USB.
 | **Simulator page** | A picture of the floor unit: a display, eight patch switches in a row, and two song switches set apart. Mapped switches light blue, the active one green. Selecting a song sends switch 1's patch at once. Keyboard: `1`–`8` for switches, `↑`/`↓` for songs. |
 | **MIDI layer** | Sends Bank Select + Program Change over USB with the mapping measured on the real unit, and reads patch names with Roland RQ1/DT1 SysEx. |
 | **Seed command** | Loads three sample songs with random patches, reading names from the unit if it's connected. |
-| **Tests** | 17 unit tests with MIDI mocked. 8 optional end-to-end tests that drive the page in real Google Chrome against a live test server. |
+| **Export command** | Writes `profiles.jsonl`, the file the floor unit plays back: one line per song with the exact MIDI bytes for each switch. Format in [`../../docs/profiles-format.md`](../../docs/profiles-format.md). |
+| **Tests** | 25 unit tests with MIDI mocked. 8 optional end-to-end tests that drive the page in real Google Chrome against a live test server. |
 
 ---
 
@@ -146,6 +147,19 @@ Then:
 Patch index reminder: user patches are 0 to 249 (U001 is 0, U061 is 60), presets
 are 250 to 499.
 
+### Exporting for the floor unit
+
+```bash
+uv run python manage.py export                      # writes ./profiles.jsonl
+uv run python manage.py export /Volumes/CIRCUITPY   # straight onto the Pico's drive
+uv run python manage.py export --style full         # U01-1 numbering on the display
+uv run python manage.py export -                    # print to the terminal
+```
+
+The file holds every song in name order with the ready-to-send MIDI bytes for
+each switch, so the floor unit needs no knowledge of the GT-1000. Copy a new one
+over the old one whenever anything changes; the unit reads it at power-up.
+
 ### Settings
 
 At the bottom of `config/settings.py`:
@@ -163,7 +177,7 @@ The Django secret key is read from `BUSSTER_SECRET_KEY` with a local-only defaul
 ### Tests
 
 ```bash
-uv run python manage.py test profiles                      # 17 unit tests, MIDI mocked
+uv run python manage.py test profiles                      # 25 unit tests, MIDI mocked
 E2E=1 uv run python manage.py test profiles.tests_e2e      # 8 Chrome end-to-end tests
 E2E=1 E2E_HEADED=1 uv run python manage.py test profiles.tests_e2e   # watch the browser
 ```
@@ -189,10 +203,12 @@ junior/devices/boss_gt-1000/
 └── profiles/                         (the app)
     ├── models.py                    Song, Slot; patch number formatting for both units
     ├── midi.py                      bank/program mapping, patch-select send, SysEx name read
+    ├── export.py                    builds profiles.jsonl for the floor unit
     ├── admin.py                     song editor; reads patch names on save
     ├── views.py / urls.py           simulator page, /api/select/<slot>/, /api/midi/
     ├── templates/profiles/unit.html  the simulator (self-contained HTML/CSS/JS)
     ├── management/commands/seed.py  sample data
+    ├── management/commands/export.py  writes profiles.jsonl
     ├── tests.py                     unit tests
     └── tests_e2e.py                 optional Chrome end-to-end tests
 ```
@@ -212,8 +228,8 @@ Decisions made during the proof of concept:
 
 1. **The laptop is the configurator; the floor unit only plays back.** Songs and
    patches are set up here and uploaded to the unit as a flat file. The unit has
-   no editing workflow. The export format is the contract between the two halves
-   and is the next thing to settle.
+   no editing workflow. The file is the contract between the two halves and is
+   specified in [`../../docs/profiles-format.md`](../../docs/profiles-format.md).
 2. **The floor unit talks MIDI, not USB.** A MIDI OUT jack (5-pin DIN, or 3.5 mm TRS
    Type A for the CORE) into the unit's MIDI IN. It's a UART and two resistors on
    any microcontroller, works with both units, and leaves the unit's USB port free
@@ -222,14 +238,18 @@ Decisions made during the proof of concept:
 3. **Ten footswitches:** eight for patches plus song up and song down. A small
    display shows the song and the current patch, e.g. `U061 - GIG READY`.
 4. **Microcontroller over Raspberry Pi.** Since nothing is edited on the device, a
-   Pico/ESP32/Teensy's instant boot and immunity to power-loss corruption win over
-   a Pi's ability to run this Django app directly.
-5. **Device abstraction.** This code is deliberately tied to the GT-1000, the unit
-   on hand. Before other processors are supported, the device-specific surface
-   (patch naming and count, bank/program mapping, name read, display formatting)
-   should sit behind an interface. Those pieces already live together in
-   `midi.py` and the formatting functions in `models.py`.
+   microcontroller's instant boot and immunity to power-loss corruption win over
+   a Pi's ability to run this Django app directly. The floor unit will be a
+   Raspberry Pi Pico running CircuitPython; it mounts as a USB drive, so uploading
+   is copying `profiles.jsonl` onto it.
+5. **Device independence lives in the file, not the firmware.** This app is
+   deliberately tied to the GT-1000, the unit on hand, and that is where the
+   device knowledge belongs. The exporter writes the finished MIDI bytes for every
+   switch, so the floor unit sends them blind and never learns what it is
+   connected to. Another processor gets its own app under `junior/devices/` and
+   the same firmware.
 
 Known gaps: bank 3 (P126 to P250) is assumed rather than measured; the 5-pin MIDI
-path hasn't been exercised from the laptop for lack of a working interface; no
-export command yet.
+path hasn't been exercised from the laptop for lack of a working interface; the
+patch names in the database are only re-read from the unit when a slot is saved,
+so a "refresh all names" action is still to come.

@@ -132,3 +132,94 @@ class AdminPatchNameTests(TestCase):
         r = self.client.post(reverse("admin:profiles_slot_add"), {"song": song.id, "position": 1, "patch": 60, "label": ""}, follow=True)
         self.assertEqual(Slot.objects.get().patch_name, "")
         self.assertContains(r, "could not read the patch name")
+
+
+class ExportTests(TestCase):
+    """The profiles file, as specified in junior/docs/profiles-format.md."""
+
+    def setUp(self):
+        from . import export
+
+        self.export = export
+        # Created out of alphabetical order on purpose; the file must sort by name.
+        numb = Song.objects.create(name="Comfortably Numb", artist="Pink Floyd")
+        Slot.objects.create(song=numb, position=1, patch=380, patch_name="GILMOUR LEAD", label="Solo")
+        tower = Song.objects.create(name="All Along the Watchtower", artist="Hendrix")
+        Slot.objects.create(song=tower, position=1, patch=14, patch_name="CLEAN VERSE", label="Intro")
+        Slot.objects.create(song=tower, position=3, patch=15, patch_name="CRUNCH", label="")
+        Song.objects.create(name="Empty Song")
+
+    def lines(self, **kw):
+        import json
+
+        return [json.loads(line) for line in self.export.profile_lines(**kw)]
+
+    def test_midi_hex_matches_spec_examples(self):
+        self.assertEqual(self.export.midi_hex(14, 1), "B0 00 00 B0 20 00 C0 0E")    # U015
+        self.assertEqual(self.export.midi_hex(380, 1), "B0 00 03 B0 20 00 C0 05")   # P131
+        self.assertEqual(self.export.midi_hex(0, 2), "B1 00 00 B1 20 00 C1 00")     # channel 2
+
+    def test_header(self):
+        head = self.lines(style="core", channel=1)[0]
+        self.assertEqual(head["format"], "busster-junior-profiles")
+        self.assertEqual(head["version"], 1)
+        self.assertEqual(head["device"], "gt1000")
+        self.assertEqual(head["style"], "core")
+        self.assertEqual(head["channel"], 1)
+        self.assertEqual(head["song_count"], 3)
+        self.assertRegex(head["exported"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+
+    def test_songs_in_name_order_with_eight_slots(self):
+        lines = self.lines(style="core", channel=1)
+        self.assertEqual([s["name"] for s in lines[1:]], ["All Along the Watchtower", "Comfortably Numb", "Empty Song"])
+        for song in lines[1:]:
+            self.assertEqual(len(song["slots"]), 8)
+        self.assertEqual(lines[3]["slots"], [None] * 8)
+
+    def test_slot_contents(self):
+        tower = self.lines(style="core", channel=1)[1]
+        self.assertEqual(tower["artist"], "Hendrix")
+        self.assertEqual(tower["slots"][0], {
+            "number": "U015", "patch_name": "CLEAN VERSE", "label": "Intro", "midi": "B0 00 00 B0 20 00 C0 0E",
+        })
+        self.assertIsNone(tower["slots"][1])
+        self.assertEqual(tower["slots"][2]["number"], "U016")
+        self.assertNotIn("patch", tower["slots"][0])  # the raw index stays on the laptop
+
+    def test_full_style_numbers(self):
+        numb = self.lines(style="full", channel=1)[2]
+        self.assertEqual(numb["slots"][0]["number"], "P27-1")
+        self.assertEqual(numb["slots"][0]["midi"], "B0 00 03 B0 20 00 C0 05")  # bytes don't depend on style
+
+    def test_write_profiles_returns_song_count_and_ends_lines_with_newline(self):
+        import io
+
+        out = io.StringIO()
+        count = self.export.write_profiles(out, style="core", channel=1)
+        self.assertEqual(count, 3)
+        text = out.getvalue()
+        self.assertEqual(text.count("\n"), 4)
+        self.assertTrue(text.endswith("\n"))
+
+    def test_export_command_writes_file_into_directory(self):
+        import io
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from django.core.management import call_command
+
+        with tempfile.TemporaryDirectory() as d:
+            io_stdout = io.StringIO()
+            call_command("export", d, style="core", channel=1, stdout=io_stdout)
+            path = Path(d) / "profiles.jsonl"
+            lines = path.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(lines), 4)
+            self.assertEqual(json.loads(lines[0])["song_count"], 3)
+            self.assertIn("Wrote 3 songs", io_stdout.getvalue())
+
+    def test_export_command_rejects_bad_channel(self):
+        from django.core.management import CommandError, call_command
+
+        with self.assertRaises(CommandError):
+            call_command("export", "-", channel=17)
