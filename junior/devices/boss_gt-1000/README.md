@@ -43,8 +43,9 @@ floor unit, and the laptop sends the MIDI itself over USB.
 | **Simulator page** | A picture of the floor unit: a display, eight patch switches in a row, and two song switches set apart. Mapped switches light blue, the active one green. Selecting a song sends switch 1's patch at once. Keyboard: `1`–`8` for switches, `↑`/`↓` for songs. |
 | **MIDI layer** | Sends Bank Select + Program Change over USB with the mapping measured on the real unit, and reads patch names with Roland RQ1/DT1 SysEx. |
 | **Seed command** | Loads three sample songs with random patches, reading names from the unit if it's connected. |
+| **Refresh names** | Re-reads every used patch's name from the unit and updates the slots whose name changed, so an export after renaming patches on the GT-1000 is current. As a management command and as an admin action on songs and slots. |
 | **Export command** | Writes `profiles.jsonl`, the file the floor unit plays back: one line per song with the exact MIDI bytes for each switch. Format in [`../../docs/profiles-format.md`](../../docs/profiles-format.md). |
-| **Tests** | 25 unit tests with MIDI mocked. 8 optional end-to-end tests that drive the page in real Google Chrome against a live test server. |
+| **Tests** | 32 unit tests with MIDI mocked. 8 optional end-to-end tests that drive the page in real Google Chrome against a live test server. |
 
 ---
 
@@ -147,6 +148,20 @@ Then:
 Patch index reminder: user patches are 0 to 249 (U001 is 0, U061 is 60), presets
 are 250 to 499.
 
+### Refreshing patch names
+
+Patch names are read from the unit when a slot is saved. If you rename or
+overwrite user patches on the GT-1000 afterwards, re-read them before exporting:
+
+```bash
+uv run python manage.py refresh_names             # user patches in every song
+uv run python manage.py refresh_names --presets   # presets too; the unit is switched through them
+```
+
+The same thing is available in the admin: select songs (or slots) and choose
+*Re-read patch names from the GT-1000* from the action menu. Each distinct patch
+is read once, and only slots whose name changed are written.
+
 ### Exporting for the floor unit
 
 ```bash
@@ -177,7 +192,7 @@ The Django secret key is read from `BUSSTER_SECRET_KEY` with a local-only defaul
 ### Tests
 
 ```bash
-uv run python manage.py test profiles                      # 25 unit tests, MIDI mocked
+uv run python manage.py test profiles                      # 32 unit tests, MIDI mocked
 E2E=1 uv run python manage.py test profiles.tests_e2e      # 8 Chrome end-to-end tests
 E2E=1 E2E_HEADED=1 uv run python manage.py test profiles.tests_e2e   # watch the browser
 ```
@@ -204,11 +219,13 @@ junior/devices/boss_gt-1000/
     ├── models.py                    Song, Slot; patch number formatting for both units
     ├── midi.py                      bank/program mapping, patch-select send, SysEx name read
     ├── export.py                    builds profiles.jsonl for the floor unit
+    ├── names.py                     re-reads patch names from the unit
     ├── admin.py                     song editor; reads patch names on save
     ├── views.py / urls.py           simulator page, /api/select/<slot>/, /api/midi/
     ├── templates/profiles/unit.html  the simulator (self-contained HTML/CSS/JS)
     ├── management/commands/seed.py  sample data
     ├── management/commands/export.py  writes profiles.jsonl
+    ├── management/commands/refresh_names.py  re-reads patch names
     ├── tests.py                     unit tests
     └── tests_e2e.py                 optional Chrome end-to-end tests
 ```
@@ -250,6 +267,4 @@ Decisions made during the proof of concept:
    the same firmware.
 
 Known gaps: bank 3 (P126 to P250) is assumed rather than measured; the 5-pin MIDI
-path hasn't been exercised from the laptop for lack of a working interface; the
-patch names in the database are only re-read from the unit when a slot is saved,
-so a "refresh all names" action is still to come.
+path hasn't been exercised from the laptop for lack of a working interface.

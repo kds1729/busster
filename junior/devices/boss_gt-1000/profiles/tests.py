@@ -223,3 +223,82 @@ class ExportTests(TestCase):
 
         with self.assertRaises(CommandError):
             call_command("export", "-", channel=17)
+
+
+class RefreshNamesTests(TestCase):
+    def setUp(self):
+        from .names import refresh_names
+
+        self.refresh = refresh_names
+        self.song = Song.objects.create(name="s")
+        self.a = Slot.objects.create(song=self.song, position=1, patch=60, patch_name="OLD NAME")
+        self.b = Slot.objects.create(song=self.song, position=2, patch=60, patch_name="OLD NAME")  # same patch
+        self.c = Slot.objects.create(song=self.song, position=3, patch=61, patch_name="KEEP ME")
+        self.preset = Slot.objects.create(song=self.song, position=4, patch=300, patch_name="FACTORY")
+
+    @mock.patch.object(midi, "read_patch_name", side_effect=lambda i: {60: "NEW NAME", 61: "KEEP ME"}[i])
+    def test_updates_changed_names_and_reads_each_patch_once(self, read):
+        result = self.refresh(Slot.objects.all())
+        self.assertEqual(read.call_count, 2)  # patches 60 and 61; preset skipped
+        self.assertEqual(result.patches_read, 2)
+        self.assertEqual(result.slots_checked, 3)
+        self.assertEqual(result.changed, 2)
+        self.assertEqual(Slot.objects.get(pk=self.a.pk).patch_name, "NEW NAME")
+        self.assertEqual(Slot.objects.get(pk=self.b.pk).patch_name, "NEW NAME")
+        self.assertEqual(Slot.objects.get(pk=self.c.pk).patch_name, "KEEP ME")
+        self.assertEqual(Slot.objects.get(pk=self.preset.pk).patch_name, "FACTORY")
+        self.assertIsNone(result.aborted)
+        self.assertEqual(result.summary(), "2 patches read, 3 slots checked, 2 names changed")
+
+    @mock.patch.object(midi, "read_patch_name", return_value="X")
+    def test_presets_included_on_request(self, read):
+        result = self.refresh(Slot.objects.all(), include_presets=True)
+        self.assertEqual(sorted(c.args[0] for c in read.call_args_list), [60, 61, 300])
+        self.assertEqual(result.slots_checked, 4)
+        self.assertEqual(Slot.objects.get(pk=self.preset.pk).patch_name, "X")
+
+    @mock.patch.object(midi, "read_patch_name", side_effect=ConnectionError("no unit"))
+    def test_no_unit_aborts_after_first_read(self, read):
+        result = self.refresh(Slot.objects.all())
+        self.assertEqual(read.call_count, 1)
+        self.assertEqual(result.aborted, "no unit")
+        self.assertEqual(result.changed, 0)
+        self.assertEqual(Slot.objects.get(pk=self.a.pk).patch_name, "OLD NAME")
+
+    @mock.patch.object(midi, "read_patch_name", side_effect=[TimeoutError("slow"), "KEEP ME"])
+    def test_single_failure_is_recorded_and_others_continue(self, read):
+        result = self.refresh(Slot.objects.all())
+        self.assertEqual(result.failures, {60: "slow"})
+        self.assertEqual(result.patches_read, 1)
+        self.assertEqual(result.changed, 0)
+        self.assertEqual(Slot.objects.get(pk=self.a.pk).patch_name, "OLD NAME")
+
+    @mock.patch.object(midi, "read_patch_name", side_effect=lambda i: {60: "NEW NAME", 61: "KEEP ME"}[i])
+    def test_command_output(self, read):
+        import io
+
+        from django.core.management import call_command
+
+        out = io.StringIO()
+        call_command("refresh_names", stdout=out)
+        text = out.getvalue()
+        self.assertIn('s #1 U061: "OLD NAME" -> "NEW NAME"', text)
+        self.assertIn("2 names changed", text)
+
+    @mock.patch.object(midi, "read_patch_name", side_effect=ConnectionError("no unit"))
+    def test_command_fails_without_unit(self, read):
+        from django.core.management import CommandError, call_command
+
+        with self.assertRaises(CommandError):
+            call_command("refresh_names")
+
+    @mock.patch.object(midi, "read_patch_name", side_effect=lambda i: {60: "NEW NAME", 61: "KEEP ME"}[i])
+    def test_admin_action_on_songs(self, read):
+        from django.contrib.auth.models import User
+
+        self.client.force_login(User.objects.create_superuser("t", "t@example.com", "pw"))
+        r = self.client.post(reverse("admin:profiles_song_changelist"),
+                             {"action": "refresh_song_names", "_selected_action": [self.song.pk]}, follow=True)
+        self.assertContains(r, "Patch names refreshed")
+        self.assertContains(r, "is now &quot;NEW NAME&quot;")
+        self.assertEqual(Slot.objects.get(pk=self.a.pk).patch_name, "NEW NAME")
