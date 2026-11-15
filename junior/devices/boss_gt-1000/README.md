@@ -42,7 +42,7 @@ floor unit, and the laptop sends the MIDI itself over USB.
 |---|---|
 | **Django admin** | Create songs. For each song, assign a patch and an optional label to switches 1 to 8. A per-song *Paginate* box, for the exceptional song with more than eight patches, lifts the limit: switch 8 then pages through the slots seven at a time. |
 | **Patch names from the unit** | When a switch is assigned, the laptop reads that patch's 16-character name from the GT-1000 over SysEx and stores it with the slot. The name travels with the config, so the floor unit never has to ask the unit for anything. |
-| **Simulator page** | A picture of the floor unit: a display, eight patch switches in a row, and two song switches set apart. Mapped switches light blue, the active one green. On a paginating song switch 8 lights red, turns the page (wrapping), and the display shows `2/3`. Selecting a song sends switch 1's patch at once and lands on page 1. Keyboard: `1`–`8` for switches, `↑`/`↓` for songs. |
+| **Simulator page** | A picture of the floor unit: a display, eight patch switches in a row, and two song switches set apart. Mapped switches light blue, the active one green. On a paginating song switch 8 lights red, turns the page (wrapping) and selects the first patch on it, and the display shows `2/3`. Selecting a song sends switch 1's patch at once and lands on page 1. Keyboard: `1`–`8` for switches, `↑`/`↓` for songs. |
 | **MIDI layer** | Sends Bank Select + Program Change over USB with the mapping measured on the real unit, and reads patch names with Roland RQ1/DT1 SysEx. |
 | **Seed command** | Loads three sample songs with random patches, reading names from the unit if it's connected. |
 | **Refresh names** | Re-reads every used patch's name from the unit and updates the slots whose name changed, so an export after renaming patches on the GT-1000 is current. As a management command and as an admin action on songs and slots. |
@@ -149,8 +149,8 @@ Then:
 
   **Pagination** (rare): if a song really needs more than eight patches, tick
   *Paginate* on the song and save. Switch 8 becomes the page switch (its LED is
-  red on the floor unit), positions 1 to 7 are page 1, 8 to 14 page 2, and so on,
-  with no upper limit. The inline shows each slot's page and switch, and offers
+  red on the floor unit): it turns the page and selects the first patch on it.
+  Positions 1 to 7 are page 1, 8 to 14 page 2, and so on, with no upper limit. The inline shows each slot's page and switch, and offers
   more rows once pagination is on. Without the box, position 9 and up are
   rejected with a message saying so.
 
@@ -267,7 +267,8 @@ Decisions made during the proof of concept:
 3. **Ten footswitches:** eight for patches plus song up and song down. A small
    display shows the song and the current patch, e.g. `U061 - GIG READY`. For the
    rare song with more than eight patches, switch 8 can instead page through the
-   patches seven at a time (red LED, page shown on the display).
+   patches seven at a time, selecting the first patch of each page as it goes
+   (red LED, page shown on the display).
 4. **Microcontroller over Raspberry Pi.** Since nothing is edited on the device, a
    microcontroller's instant boot and immunity to power-loss corruption win over
    a Pi's ability to run this Django app directly. The floor unit will be a

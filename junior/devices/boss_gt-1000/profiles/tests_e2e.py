@@ -203,21 +203,24 @@ class SimulatorE2ETests(StaticLiveServerTestCase):
         self.assertEqual(self.page.locator("#lcd-page").inner_text(), "1/3")
         self.expect_switches({1: "green", 7: "blue", 8: "red"})
 
-        sends = len(self.sent)
-        self.switch(8).click()                        # page 2: position 8 sits under switch 1
-        self.page.wait_for_function("document.querySelector('#lcd-page').textContent === '2/3'")
-        self.expect_switches({1: "blue", 8: "red"})   # the active slot is on page 1, so no green here
-        self.assertEqual(self.press_switch(1), [bank_program(12)])
+        # Page 2: position 8 sits under switch 1 and is selected by the page turn itself.
+        self.assertEqual(self.press_switch(8), [bank_program(12)])
+        self.assertEqual(self.page.locator("#lcd-page").inner_text(), "2/3")
         self.assertEqual(self.display(), ("zz paged", "U013 - POS 8"))
         self.expect_switches({1: "green", 8: "red"})
 
-        self.switch(8).click()                        # page 3: position 16 is switch 2
+        # Page 3: its first slot (position 15) is empty, so the page turns but nothing is sent.
+        sends = len(self.sent)
+        self.switch(8).click()
         self.page.wait_for_function("document.querySelector('#lcd-page').textContent === '3/3'")
-        self.expect_switches({2: "blue", 8: "red"})
-        self.switch(8).click()                        # and wraps to page 1
-        self.page.wait_for_function("document.querySelector('#lcd-page').textContent === '1/3'")
-        self.expect_switches({1: "blue", 7: "blue", 8: "red"})
-        self.assertEqual(len(self.sent), sends + 1)   # turning pages sent nothing
+        self.page.wait_for_timeout(200)
+        self.assertEqual(len(self.sent), sends)
+        self.expect_switches({2: "blue", 8: "red"})   # position 16 is switch 2; the active slot is on page 2
+
+        # Wraps to page 1 and selects position 1 again.
+        self.assertEqual(self.press_switch(8), [bank_program(10)])
+        self.assertEqual(self.page.locator("#lcd-page").inner_text(), "1/3")
+        self.expect_switches({1: "green", 7: "blue", 8: "red"})
 
         self.change_song("down", "song1")             # a plain song: no page readout, switch 8 not red
         self.assertEqual(self.page.locator("#lcd-page").inner_text(), "")

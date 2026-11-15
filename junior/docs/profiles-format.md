@@ -97,18 +97,20 @@ Position *n* is on page `(n - 1) // 7` (0-based) and under footswitch
 a whole number of pages, and it is never shorter than one page (7 entries). A
 song with `paginate` false has exactly 8 entries and no pages.
 
-Pressing switch 8 on a paginating song moves to the next page and wraps from the
-last page back to the first. It sends nothing. Selecting a song always lands on
-page 1. While the current song paginates, switch 8's LED is **red**; otherwise
-switch 8 lights like the other seven. The display shows the current page and
-the page count, for example `2/3`.
+Pressing switch 8 on a paginating song moves to the next page, wrapping from
+the last page back to the first, and **immediately selects the first patch on
+that page**, exactly as selecting a song selects its slot 1. If that first
+slot is `null`, the page still turns and nothing is sent. Selecting a song
+always lands on page 1. While the current song paginates, switch 8's LED is
+**red**; otherwise switch 8 lights like the other seven. The display shows the
+current page and the page count, for example `2/3`.
 
 ```json
 {"name": "Comfortably Numb", "artist": "Pink Floyd", "paginate": true, "slots": [{"number": "U021", "patch_name": "CLEAN", "label": "Intro", "midi": "B0 00 00 B0 20 00 C0 14"}, null, null, null, null, null, null, {"number": "U022", "patch_name": "LEAD", "label": "Solo 1", "midi": "B0 00 00 B0 20 00 C0 15"}, null, null, null, null, null, null]}
 ```
 
-Here position 8 is the first patch of page 2: the player presses switch 8 to
-turn the page, then switch 1 to select it.
+Here position 8 is the first patch of page 2: one press of switch 8 turns the
+page and selects it.
 
 ## What the floor unit does with it
 
@@ -120,7 +122,8 @@ turn the page, then switch 1 to select it.
   `midi` of the slot at position `page * 7 + n` on a paginating song, or
   `slots[n-1].midi` otherwise. A `null` slot does nothing.
 - On a paginating song, footswitch 8 advances the page (wrapping) and sends
-  nothing. Switch 8's LED is red while such a song is selected.
+  the `midi` of the first slot on the new page, if it is not `null`. Switch 8's
+  LED is red while such a song is selected.
 - Up/down footswitches move through the songs in file order.
 
 ## GT-1000 exporter notes

@@ -181,11 +181,14 @@
     }
   }
 
-  // Switch 8 on a paginating song: next page, wrapping. Sends nothing.
+  // Switch 8 on a paginating song: next page, wrapping, and the first patch on
+  // it is selected at once (as slot 1 is when a song is selected). An empty
+  // first slot just turns the page.
   function nextPage() {
     state.page = (state.page + 1) % pageCount();
     renderSwitches();
     renderLcd("");
+    press(0);
   }
 
   function renderLcd(msg, isErr) {
