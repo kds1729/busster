@@ -12,7 +12,7 @@ only plays it back.
 ```
 junior/
 ├── devices/     one directory per supported effects processor
-├── docs/        the profiles file format, the laptop-to-floor-unit interface
+├── docs/        the profiles file format and the floor-unit enclosure
 ├── midi/        MIDI transport shared by all devices
 ├── simulator/   the floor-unit simulator
 └── tests/       tests
@@ -22,7 +22,8 @@ The first device, and the current proof of concept, is the BOSS GT-1000 /
 GT-1000CORE under [devices/boss_gt-1000/](devices/boss_gt-1000/).
 
 The file the laptop exports and the floor unit plays back is specified in
-[docs/profiles-format.md](docs/profiles-format.md).
+[docs/profiles-format.md](docs/profiles-format.md). The floor unit's enclosure,
+switch layout and display are specified in [docs/enclosure.md](docs/enclosure.md).
 
 ## Status
 
@@ -31,13 +32,15 @@ configures songs, reads patch names from the unit, refreshes them on demand,
 and exports `profiles.jsonl`. It also has a simulator page that stands in for
 the hardware.
 
-**Floor unit: not started.** It will be a Raspberry Pi Pico running
-CircuitPython, with ten footswitches (eight patches plus song up/down), a
-128x64 OLED, and a 5-pin MIDI OUT jack. In the rare case of a song with more than
-eight patches, switch 8 pages through them seven at a time instead (red LED). The
-Pico mounts as a USB drive, so uploading a new configuration is copying
-`profiles.jsonl` onto it. The firmware reads that file and sends the MIDI bytes
-it contains; it knows nothing about any particular effects processor.
+**Floor unit: designed, not built.** It is a folded sheet-metal hood on a wood
+base, with ten footswitches (eight patches on a gentle arc plus song up/down),
+one RGB LED per patch switch, a 5 inch 800x480 colour display on an ESP32-S3
+board (Sunton ESP32-8048S050C) running CircuitPython, and a 5-pin MIDI OUT jack.
+In the rare case of a song with more than eight patches, switch 8 pages through
+them seven at a time instead (red LED). The board mounts as a USB drive, so
+uploading a new configuration is copying `profiles.jsonl` onto it. The firmware
+reads that file and sends the MIDI bytes it contains; it knows nothing about any
+particular effects processor. See [docs/enclosure.md](docs/enclosure.md).
 
 The shared `midi/`, `simulator/` and `tests/` directories are placeholders
 until a second device makes extracting the common parts worthwhile.
