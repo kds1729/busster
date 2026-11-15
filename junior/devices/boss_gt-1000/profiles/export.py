@@ -4,7 +4,8 @@ Write the profiles file the floor unit plays back.
 The format is specified in junior/docs/profiles-format.md. In short: JSON
 Lines, a header line, then one line per song in display order. Every slot
 carries the exact MIDI bytes to send, so the floor unit never has to know
-anything about the GT-1000.
+anything about the GT-1000. A paginating song (switch 8 turns the page) has a
+slot array that is a whole number of 7-slot pages instead of exactly 8 entries.
 """
 
 import json
@@ -14,10 +15,10 @@ from typing import IO, Iterator
 from django.conf import settings
 
 from . import midi
-from .models import SLOT_COUNT, Song, format_patch_core, format_patch_full
+from .models import Song, format_patch_core, format_patch_full
 
 FORMAT = "busster-junior-profiles"
-VERSION = 1
+VERSION = 2
 DEVICE_KEY = "gt1000"
 FILENAME = "profiles.jsonl"
 
@@ -43,10 +44,10 @@ def slot_entry(slot, style: str, channel: int) -> dict:
 
 
 def song_profile(song: Song, style: str, channel: int) -> dict:
-    slots: list = [None] * SLOT_COUNT
+    slots: list = [None] * song.slot_capacity   # 8, or a whole number of pages
     for slot in song.slots.all():
         slots[slot.position - 1] = slot_entry(slot, style, channel)
-    return {"name": song.name, "artist": song.artist, "slots": slots}
+    return {"name": song.name, "artist": song.artist, "paginate": song.paginate, "slots": slots}
 
 
 def header(song_count: int, style: str, channel: int, exported: datetime | None = None) -> dict:

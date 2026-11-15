@@ -32,6 +32,7 @@ HEADED = os.environ.get("E2E_HEADED") == "1"
 LED_GREEN = "rgb(62, 207, 142)"
 LED_BLUE = "rgb(59, 139, 255)"
 LED_OFF = "rgb(42, 46, 53)"
+LED_RED = "rgb(255, 74, 74)"     # switch 8 while the song paginates
 
 SONGS = {
     "song1": [(34, "CLEAN COMBO"), (145, "JAZZ FUNK CHORUS"), (216, "ORANGE JUICE"), (205, "SOULFUL GAIN")],
@@ -133,9 +134,9 @@ class SimulatorE2ETests(StaticLiveServerTestCase):
         self.wait_sent(before + 1)
 
     def expect_switches(self, expected):
-        """expected: dict position -> 'green' | 'blue' | 'off'."""
+        """expected: dict position -> 'green' | 'blue' | 'red' | 'off'."""
         colors = self.led_colors()
-        want = {"green": LED_GREEN, "blue": LED_BLUE, "off": LED_OFF}
+        want = {"green": LED_GREEN, "blue": LED_BLUE, "red": LED_RED, "off": LED_OFF}
         for pos in range(1, 9):
             self.assertEqual(colors[pos - 1], want[expected.get(pos, "off")], f"switch {pos}")
 
@@ -189,6 +190,38 @@ class SimulatorE2ETests(StaticLiveServerTestCase):
         self.page.wait_for_function("document.querySelector('#lcd-song').textContent === 'song2'")
         self.wait_sent(3)
         self.assertEqual(self.display(), ("song2", "U196 - SPACED OUT"))
+
+    def test_pagination_switch_8_turns_the_page(self):
+        # The rare song with more than eight patches: positions 1-7 are page 1,
+        # 8-14 page 2, 15-21 page 3. "zz" so it sorts last.
+        paged = Song.objects.create(name="zz paged", paginate=True)
+        for position, patch in [(1, 10), (7, 11), (8, 12), (16, 13)]:
+            Slot.objects.create(song=paged, position=position, patch=patch, patch_name=f"POS {position}")
+        self.open_unit()
+        self.change_song("up", "zz paged")            # up from song1 wraps to the last song
+        self.assertEqual(self.sent[-1], bank_program(10))
+        self.assertEqual(self.page.locator("#lcd-page").inner_text(), "1/3")
+        self.expect_switches({1: "green", 7: "blue", 8: "red"})
+
+        sends = len(self.sent)
+        self.switch(8).click()                        # page 2: position 8 sits under switch 1
+        self.page.wait_for_function("document.querySelector('#lcd-page').textContent === '2/3'")
+        self.expect_switches({1: "blue", 8: "red"})   # the active slot is on page 1, so no green here
+        self.assertEqual(self.press_switch(1), [bank_program(12)])
+        self.assertEqual(self.display(), ("zz paged", "U013 - POS 8"))
+        self.expect_switches({1: "green", 8: "red"})
+
+        self.switch(8).click()                        # page 3: position 16 is switch 2
+        self.page.wait_for_function("document.querySelector('#lcd-page').textContent === '3/3'")
+        self.expect_switches({2: "blue", 8: "red"})
+        self.switch(8).click()                        # and wraps to page 1
+        self.page.wait_for_function("document.querySelector('#lcd-page').textContent === '1/3'")
+        self.expect_switches({1: "blue", 7: "blue", 8: "red"})
+        self.assertEqual(len(self.sent), sends + 1)   # turning pages sent nothing
+
+        self.change_song("down", "song1")             # a plain song: no page readout, switch 8 not red
+        self.assertEqual(self.page.locator("#lcd-page").inner_text(), "")
+        self.expect_switches({1: "green", 2: "blue", 3: "blue", 4: "blue"})
 
     def test_midi_error_is_shown_on_display(self):
         self.send_patch.stop()

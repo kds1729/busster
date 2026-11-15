@@ -22,7 +22,9 @@ patch list between parts of a song is not workable on stage.
 ## The idea
 
 - On the laptop, create a **song** and assign a GT-1000 **patch** to each of up to
-  **eight switches**, in the order the song needs them.
+  **eight switches**, in the order the song needs them. (For the rare song that
+  needs more than eight, **pagination** turns switch 8 into a page switch; see
+  below.)
 - On the floor, pick the song with **up/down switches**, and the unit loads
   switch 1's patch immediately. Each switch press loads its patch. That's it.
 - All configuration happens on the laptop. The floor unit only holds the uploaded
@@ -38,14 +40,14 @@ floor unit, and the laptop sends the MIDI itself over USB.
 
 | Piece | What it does |
 |---|---|
-| **Django admin** | Create songs. For each song, assign a patch and an optional label to switches 1 to 8. |
+| **Django admin** | Create songs. For each song, assign a patch and an optional label to switches 1 to 8. A per-song *Paginate* box, for the exceptional song with more than eight patches, lifts the limit: switch 8 then pages through the slots seven at a time. |
 | **Patch names from the unit** | When a switch is assigned, the laptop reads that patch's 16-character name from the GT-1000 over SysEx and stores it with the slot. The name travels with the config, so the floor unit never has to ask the unit for anything. |
-| **Simulator page** | A picture of the floor unit: a display, eight patch switches in a row, and two song switches set apart. Mapped switches light blue, the active one green. Selecting a song sends switch 1's patch at once. Keyboard: `1`–`8` for switches, `↑`/`↓` for songs. |
+| **Simulator page** | A picture of the floor unit: a display, eight patch switches in a row, and two song switches set apart. Mapped switches light blue, the active one green. On a paginating song switch 8 lights red, turns the page (wrapping), and the display shows `2/3`. Selecting a song sends switch 1's patch at once and lands on page 1. Keyboard: `1`–`8` for switches, `↑`/`↓` for songs. |
 | **MIDI layer** | Sends Bank Select + Program Change over USB with the mapping measured on the real unit, and reads patch names with Roland RQ1/DT1 SysEx. |
 | **Seed command** | Loads three sample songs with random patches, reading names from the unit if it's connected. |
 | **Refresh names** | Re-reads every used patch's name from the unit and updates the slots whose name changed, so an export after renaming patches on the GT-1000 is current. As a management command and as an admin action on songs and slots. |
-| **Export command** | Writes `profiles.jsonl`, the file the floor unit plays back: one line per song with the exact MIDI bytes for each switch. Format in [`../../docs/profiles-format.md`](../../docs/profiles-format.md). |
-| **Tests** | 32 unit tests with MIDI mocked. 8 optional end-to-end tests that drive the page in real Google Chrome against a live test server. |
+| **Export command** | Writes `profiles.jsonl`, the file the floor unit plays back: one line per song with the exact MIDI bytes for each switch. Format in [`../../docs/profiles-format.md`](../../docs/profiles-format.md) (version 2). |
+| **Tests** | 48 unit tests with MIDI mocked. 9 optional end-to-end tests that drive the page in real Google Chrome against a live test server. |
 
 ---
 
@@ -145,6 +147,13 @@ Then:
   the unit when you save (a warning appears if the unit isn't connected; the slot
   still saves).
 
+  **Pagination** (rare): if a song really needs more than eight patches, tick
+  *Paginate* on the song and save. Switch 8 becomes the page switch (its LED is
+  red on the floor unit), positions 1 to 7 are page 1, 8 to 14 page 2, and so on,
+  with no upper limit. The inline shows each slot's page and switch, and offers
+  more rows once pagination is on. Without the box, position 9 and up are
+  rejected with a message saying so.
+
 Patch index reminder: user patches are 0 to 249 (U001 is 0, U061 is 60), presets
 are 250 to 499.
 
@@ -192,8 +201,8 @@ The Django secret key is read from `BUSSTER_SECRET_KEY` with a local-only defaul
 ### Tests
 
 ```bash
-uv run python manage.py test profiles                      # 32 unit tests, MIDI mocked
-E2E=1 uv run python manage.py test profiles.tests_e2e      # 8 Chrome end-to-end tests
+uv run python manage.py test profiles                      # 48 unit tests, MIDI mocked
+E2E=1 uv run python manage.py test profiles.tests_e2e      # 9 Chrome end-to-end tests
 E2E=1 E2E_HEADED=1 uv run python manage.py test profiles.tests_e2e   # watch the browser
 ```
 
@@ -202,9 +211,10 @@ and Google Chrome. It launches its own headless Chrome, runs against Django's li
 test server with a throwaway database, and mocks the MIDI layer inside the server
 so each test can assert the exact bank and program that would have been sent. It
 covers: load selects song 1 and switch 1; song down/up including wrap-around;
-switch presses and LED states; inert unassigned switches; keyboard shortcuts; the
-MIDI error path; and creating a song through the admin with the patch name read
-from the (mocked) unit.
+switch presses and LED states; inert unassigned switches; keyboard shortcuts; a
+paginating song (red switch 8, page turns, wrap-around, page readout); the MIDI
+error path; and creating a song through the admin with the patch name read from
+the (mocked) unit.
 
 ---
 
@@ -232,10 +242,12 @@ junior/devices/boss_gt-1000/
 
 ### Data model
 
-- **Song**: name (unique), artist, notes. Songs are listed alphabetically; that is
-  the order the song switches scroll through.
-- **Slot**: song, position 1 to 8, patch index 0 to 499, patch name (16 chars, from
-  the unit), label (free text). One slot per position per song.
+- **Song**: name (unique), artist, notes, paginate (off by default; the exception
+  for a song with more than eight patches). Songs are listed alphabetically; that
+  is the order the song switches scroll through.
+- **Slot**: song, position (1 to 8, or any number from 1 when the song paginates:
+  pages of seven), patch index 0 to 499, patch name (16 chars, from the unit),
+  label (free text). One slot per position per song.
 
 ---
 
@@ -253,7 +265,9 @@ Decisions made during the proof of concept:
    for Tone Studio. Connecting MIDI OUT back to the box is optional and would allow
    confirmation and name reads.
 3. **Ten footswitches:** eight for patches plus song up and song down. A small
-   display shows the song and the current patch, e.g. `U061 - GIG READY`.
+   display shows the song and the current patch, e.g. `U061 - GIG READY`. For the
+   rare song with more than eight patches, switch 8 can instead page through the
+   patches seven at a time (red LED, page shown on the display).
 4. **Microcontroller over Raspberry Pi.** Since nothing is edited on the device, a
    microcontroller's instant boot and immunity to power-loss corruption win over
    a Pi's ability to run this Django app directly. The floor unit will be a

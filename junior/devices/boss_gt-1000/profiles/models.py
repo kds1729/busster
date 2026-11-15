@@ -1,9 +1,14 @@
 """
 Songs and the GT-1000 patches they use.
 
-A Song has up to SLOT_COUNT slots (the 8 footswitches). Each Slot holds one
-GT-1000 patch and a short label saying what that sound is for ("clean intro",
-"solo"). Stepping through the slots in order walks through the song.
+A Song has slots, one per footswitch. Each Slot holds one GT-1000 patch and a
+short label saying what that sound is for ("clean intro", "solo"). Stepping
+through the slots in order walks through the song.
+
+Normally a song has up to SLOT_COUNT slots (the 8 footswitches). A song with
+`paginate` on gives up switch 8 to page through its slots PAGE_SIZE (7) at a
+time, so it can have any number of slots: positions 1-7 are page 1, 8-14 are
+page 2, and so on. See junior/docs/profiles-format.md, "Pagination".
 
 Patches are stored as a raw 0-based index 0..499 so the same row works for
 both units:
@@ -15,7 +20,8 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
-SLOT_COUNT = 8
+SLOT_COUNT = 8   # footswitches, and the slot limit for a song that does not paginate
+PAGE_SIZE = 7    # slots per page when a song paginates (switch 8 turns the page)
 USER_PATCHES = 250
 PRESET_PATCHES = 250
 TOTAL_PATCHES = USER_PATCHES + PRESET_PATCHES
@@ -38,6 +44,12 @@ class Song(models.Model):
     name = models.CharField(max_length=200, unique=True)
     artist = models.CharField(max_length=200, blank=True)
     notes = models.TextField(blank=True)
+    paginate = models.BooleanField(
+        default=False,
+        help_text=f"Rarely needed: only for a song with more than {SLOT_COUNT} patches. Switch 8 then "
+                  f"pages through the slots {PAGE_SIZE} at a time instead of selecting a patch, and its "
+                  f"LED turns red.",
+    )
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
 
@@ -47,12 +59,30 @@ class Song(models.Model):
     def __str__(self) -> str:
         return self.name
 
+    @property
+    def page_count(self) -> int:
+        """Pages of PAGE_SIZE slots when paginating; always 1 otherwise."""
+        if not self.paginate:
+            return 1
+        top = max((s.position for s in self.slots.all()), default=1)
+        return max(1, -(-top // PAGE_SIZE))
+
+    @property
+    def slot_capacity(self) -> int:
+        """Length of the slot array the floor unit sees: 8, or a whole number of pages."""
+        return self.page_count * PAGE_SIZE if self.paginate else SLOT_COUNT
+
+    def max_position(self) -> int | None:
+        """Highest allowed slot position, or None when paginating (no limit)."""
+        return None if self.paginate else SLOT_COUNT
+
 
 class Slot(models.Model):
     song = models.ForeignKey(Song, on_delete=models.CASCADE, related_name="slots")
     position = models.PositiveSmallIntegerField(
-        validators=[MinValueValidator(1), MaxValueValidator(SLOT_COUNT)],
-        help_text=f"Footswitch number, 1 to {SLOT_COUNT}.",
+        validators=[MinValueValidator(1)],
+        help_text=f"Footswitch number, 1 to {SLOT_COUNT}. On a paginating song any number: "
+                  f"1-{PAGE_SIZE} is page 1, {PAGE_SIZE + 1}-{2 * PAGE_SIZE} is page 2, and so on.",
     )
     patch = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(0), MaxValueValidator(TOTAL_PATCHES - 1)],
@@ -86,6 +116,28 @@ class Slot(models.Model):
         number = self.patch_full if style == "full" else self.patch_core
         return f"{number} - {self.patch_name}" if self.patch_name else number
 
+    @property
+    def page(self) -> int:
+        """0-based page this slot is on when its song paginates; 0 otherwise."""
+        return (self.position - 1) // PAGE_SIZE if self.song.paginate else 0
+
+    @property
+    def switch(self) -> int:
+        """Footswitch (1-based) that selects this slot on its page."""
+        return (self.position - 1) % PAGE_SIZE + 1 if self.song.paginate else self.position
+
     def clean(self):
+        errors = {}
         if self.patch is not None and not 0 <= self.patch < TOTAL_PATCHES:
-            raise ValidationError({"patch": f"Patch index must be 0 to {TOTAL_PATCHES - 1}."})
+            errors["patch"] = f"Patch index must be 0 to {TOTAL_PATCHES - 1}."
+        # The song is unknown while the admin validates slots of a song that is
+        # not saved yet (RelatedObjectDoesNotExist is an AttributeError); then
+        # only the field validators apply.
+        song = getattr(self, "song", None)
+        if song is not None and self.position is not None:
+            limit = song.max_position()
+            if limit is not None and self.position > limit:
+                errors["position"] = (f"Position must be 1 to {limit}. Turn on pagination for "
+                                      f"the song to use more than {limit} slots.")
+        if errors:
+            raise ValidationError(errors)

@@ -33,10 +33,11 @@ the hardware.
 
 **Floor unit: not started.** It will be a Raspberry Pi Pico running
 CircuitPython, with ten footswitches (eight patches plus song up/down), a
-128x64 OLED, and a 5-pin MIDI OUT jack. The Pico mounts as a USB drive, so
-uploading a new configuration is copying `profiles.jsonl` onto it. The firmware
-reads that file and sends the MIDI bytes it contains; it knows nothing about any
-particular effects processor.
+128x64 OLED, and a 5-pin MIDI OUT jack. In the rare case of a song with more than
+eight patches, switch 8 pages through them seven at a time instead (red LED). The
+Pico mounts as a USB drive, so uploading a new configuration is copying
+`profiles.jsonl` onto it. The firmware reads that file and sends the MIDI bytes
+it contains; it knows nothing about any particular effects processor.
 
 The shared `midi/`, `simulator/` and `tests/` directories are placeholders
 until a second device makes extracting the common parts worthwhile.

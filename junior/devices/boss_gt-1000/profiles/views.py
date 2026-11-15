@@ -6,11 +6,11 @@ from django.shortcuts import render
 from django.views.decorators.http import require_POST
 
 from . import midi
-from .models import SLOT_COUNT, Slot, Song
+from .models import PAGE_SIZE, SLOT_COUNT, Slot, Song
 
 
 def _song_payload(song: Song, style: str) -> dict:
-    slots = [None] * SLOT_COUNT
+    slots = [None] * song.slot_capacity   # 8, or a whole number of 7-slot pages
     for s in song.slots.all():
         slots[s.position - 1] = {
             "id": s.id,
@@ -18,14 +18,15 @@ def _song_payload(song: Song, style: str) -> dict:
             "display": s.display_text(style),
             "label": s.label,
         }
-    return {"id": song.id, "name": song.name, "artist": song.artist, "slots": slots}
+    return {"id": song.id, "name": song.name, "artist": song.artist, "paginate": song.paginate, "slots": slots}
 
 
 def unit(request):
     """The floor-unit simulator page."""
     style = getattr(settings, "GT1000_PATCH_STYLE", "core")
     songs = [_song_payload(s, style) for s in Song.objects.prefetch_related("slots").order_by("name")]
-    return render(request, "profiles/unit.html", {"songs_json": json.dumps(songs), "slot_count": SLOT_COUNT})
+    return render(request, "profiles/unit.html",
+                  {"songs_json": json.dumps(songs), "slot_count": SLOT_COUNT, "page_size": PAGE_SIZE})
 
 
 @require_POST

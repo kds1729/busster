@@ -1,10 +1,11 @@
 from unittest import mock
 
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 
 from . import midi
-from .models import Slot, Song, format_patch_core, format_patch_full
+from .models import PAGE_SIZE, SLOT_COUNT, Slot, Song, format_patch_core, format_patch_full
 
 
 class PatchFormattingTests(TestCase):
@@ -75,6 +76,32 @@ class SelectSlotViewTests(TestCase):
         self.assertEqual(r.status_code, 405)
 
 
+class SimulatorPayloadTests(TestCase):
+    def test_plain_song_has_eight_entries(self):
+        from .views import _song_payload
+
+        song = Song.objects.create(name="Plain")
+        Slot.objects.create(song=song, position=3, patch=5)
+        payload = _song_payload(song, "core")
+        self.assertFalse(payload["paginate"])
+        self.assertEqual(len(payload["slots"]), 8)
+        self.assertEqual(payload["slots"][2]["display"], "U006")
+
+    def test_paginating_song_has_whole_pages(self):
+        from .views import _song_payload
+
+        song = Song.objects.create(name="Paged", paginate=True)
+        Slot.objects.create(song=song, position=9, patch=0)
+        payload = _song_payload(song, "core")
+        self.assertTrue(payload["paginate"])
+        self.assertEqual(len(payload["slots"]), 14)
+        self.assertIsNotNone(payload["slots"][8])
+
+    def test_unit_page_passes_page_size(self):
+        r = self.client.get(reverse("profiles:unit"))
+        self.assertContains(r, "const PAGE_SIZE = 7;")
+
+
 class SysexTests(TestCase):
     def test_checksum(self):
         # 20 3C 00 00 + 00 00 00 10 -> sum 0x6C -> 128-108 = 20 = 0x14
@@ -100,6 +127,56 @@ class SysexTests(TestCase):
 
     def test_parse_rejects_other_messages(self):
         self.assertIsNone(midi.parse_dt1([0x7E, 0x10, 0x06, 0x02]))
+
+
+class PaginationModelTests(TestCase):
+    def setUp(self):
+        self.plain = Song.objects.create(name="Plain")
+        self.paged = Song.objects.create(name="Paged", paginate=True)
+
+    def test_constants(self):
+        self.assertEqual((SLOT_COUNT, PAGE_SIZE), (8, 7))
+
+    def test_plain_song_caps_positions_at_eight(self):
+        Slot(song=self.plain, position=8, patch=0).full_clean()  # fine
+        with self.assertRaises(ValidationError) as cm:
+            Slot(song=self.plain, position=9, patch=0).full_clean()
+        self.assertIn("position", cm.exception.message_dict)
+        self.assertIn("pagination", cm.exception.message_dict["position"][0])
+
+    def test_paginating_song_allows_any_position(self):
+        Slot(song=self.paged, position=9, patch=0).full_clean()
+        Slot(song=self.paged, position=21, patch=0).full_clean()
+
+    def test_position_zero_still_rejected(self):
+        with self.assertRaises(ValidationError):
+            Slot(song=self.paged, position=0, patch=0).full_clean()
+
+    def test_slot_without_song_validates_fields_only(self):
+        # The admin validates inline slots before a new song is saved.
+        Slot(position=12, patch=0).clean()
+
+    def test_page_and_switch(self):
+        s1 = Slot(song=self.paged, position=1)
+        s7 = Slot(song=self.paged, position=7)
+        s8 = Slot(song=self.paged, position=8)
+        s15 = Slot(song=self.paged, position=15)
+        self.assertEqual([(s.page, s.switch) for s in (s1, s7, s8, s15)], [(0, 1), (0, 7), (1, 1), (2, 1)])
+        self.assertEqual((Slot(song=self.plain, position=8).page, Slot(song=self.plain, position=8).switch), (0, 8))
+
+    def test_page_count_and_capacity(self):
+        self.assertEqual((self.plain.page_count, self.plain.slot_capacity), (1, SLOT_COUNT))
+        self.assertEqual((self.paged.page_count, self.paged.slot_capacity), (1, PAGE_SIZE))
+        Slot.objects.create(song=self.paged, position=7, patch=0)
+        self.assertEqual(self.paged.page_count, 1)
+        Slot.objects.create(song=self.paged, position=8, patch=1)
+        self.assertEqual((self.paged.page_count, self.paged.slot_capacity), (2, 2 * PAGE_SIZE))
+        Slot.objects.create(song=self.paged, position=15, patch=2)
+        self.assertEqual(self.paged.page_count, 3)
+        # A plain song with 8 slots still has one page and a capacity of 8.
+        for pos in range(1, 9):
+            Slot.objects.create(song=self.plain, position=pos, patch=pos)
+        self.assertEqual((self.plain.page_count, self.plain.slot_capacity), (1, SLOT_COUNT))
 
 
 class DisplayTextTests(TestCase):
@@ -134,6 +211,52 @@ class AdminPatchNameTests(TestCase):
         self.assertContains(r, "could not read the patch name")
 
 
+class AdminPaginationTests(TestCase):
+    """Songs are edited with their slots inline; the position limit must follow
+    the pagination box as posted, not as stored."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.client.force_login(User.objects.create_superuser("t", "t@example.com", "pw"))
+        self.song = Song.objects.create(name="s")
+
+    def post_song(self, paginate, positions):
+        data = {"name": "s", "artist": "", "notes": "", "paginate": "on" if paginate else "",
+                "slots-TOTAL_FORMS": len(positions), "slots-INITIAL_FORMS": 0,
+                "slots-MIN_NUM_FORMS": 0, "slots-MAX_NUM_FORMS": 1000}
+        for i, pos in enumerate(positions):
+            data.update({f"slots-{i}-position": pos, f"slots-{i}-patch": pos, f"slots-{i}-label": "",
+                         f"slots-{i}-song": self.song.id})
+        return self.client.post(reverse("admin:profiles_song_change", args=[self.song.id]), data)
+
+    @mock.patch.object(midi, "read_patch_name", return_value="X")
+    def test_position_nine_needs_pagination(self, read):
+        r = self.post_song(False, [1, 9])
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Turn on pagination")
+        self.assertEqual(Slot.objects.count(), 0)
+
+    @mock.patch.object(midi, "read_patch_name", return_value="X")
+    def test_pagination_and_slot_nine_in_the_same_submit(self, read):
+        r = self.post_song(True, [1, 9, 15])
+        self.assertEqual(r.status_code, 302)
+        self.song.refresh_from_db()
+        self.assertTrue(self.song.paginate)
+        self.assertEqual(sorted(Slot.objects.values_list("position", flat=True)), [1, 9, 15])
+
+    def test_change_page_shows_page_and_switch(self):
+        self.song.paginate = True
+        self.song.save()
+        Slot.objects.create(song=self.song, position=9, patch=0)
+        r = self.client.get(reverse("admin:profiles_song_change", args=[self.song.id]))
+        self.assertContains(r, "page 2, switch 2")
+
+    def test_standalone_slot_form_applies_limit(self):
+        r = self.client.post(reverse("admin:profiles_slot_add"), {"song": self.song.id, "position": 9, "patch": 0, "label": ""})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Turn on pagination")
+
+
 class ExportTests(TestCase):
     """The profiles file, as specified in junior/docs/profiles-format.md."""
 
@@ -162,7 +285,7 @@ class ExportTests(TestCase):
     def test_header(self):
         head = self.lines(style="core", channel=1)[0]
         self.assertEqual(head["format"], "busster-junior-profiles")
-        self.assertEqual(head["version"], 1)
+        self.assertEqual(head["version"], 2)
         self.assertEqual(head["device"], "gt1000")
         self.assertEqual(head["style"], "core")
         self.assertEqual(head["channel"], 1)
@@ -174,7 +297,23 @@ class ExportTests(TestCase):
         self.assertEqual([s["name"] for s in lines[1:]], ["All Along the Watchtower", "Comfortably Numb", "Empty Song"])
         for song in lines[1:]:
             self.assertEqual(len(song["slots"]), 8)
+            self.assertFalse(song["paginate"])
         self.assertEqual(lines[3]["slots"], [None] * 8)
+
+    def test_paginating_song_has_whole_pages(self):
+        paged = Song.objects.create(name="Paged", paginate=True)
+        Slot.objects.create(song=paged, position=1, patch=0)
+        Slot.objects.create(song=paged, position=9, patch=1, patch_name="LEAD", label="Solo")
+        song = next(s for s in self.lines(style="core", channel=1)[1:] if s["name"] == "Paged")
+        self.assertTrue(song["paginate"])
+        self.assertEqual(len(song["slots"]), 14)
+        self.assertEqual(song["slots"][8]["number"], "U002")
+        self.assertEqual([i for i, x in enumerate(song["slots"]) if x], [0, 8])
+
+    def test_paginating_song_with_no_slots_has_one_page(self):
+        Song.objects.create(name="Paged Empty", paginate=True)
+        song = next(s for s in self.lines(style="core", channel=1)[1:] if s["name"] == "Paged Empty")
+        self.assertEqual(song["slots"], [None] * 7)
 
     def test_slot_contents(self):
         tower = self.lines(style="core", channel=1)[1]

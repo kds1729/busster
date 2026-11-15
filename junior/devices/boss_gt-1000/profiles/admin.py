@@ -1,7 +1,8 @@
 from django.contrib import admin, messages
+from django.forms.models import BaseInlineFormSet
 
 from . import midi
-from .models import SLOT_COUNT, Slot, Song
+from .models import PAGE_SIZE, SLOT_COUNT, Slot, Song
 from .names import refresh_names
 
 
@@ -41,13 +42,37 @@ def refresh_slot_names(modeladmin, request, queryset):
     report_refresh(request, refresh_names(queryset.select_related("song")))
 
 
+class SlotFormSet(BaseInlineFormSet):
+    """Give each slot its song before validation, so Slot.clean() can apply the
+    song's position limit. Django only sets the song *id* here, and on a change
+    the slot would otherwise load the song from the database, with the
+    pagination setting as it was before this submit rather than as posted."""
+
+    def _construct_form(self, i, **kwargs):
+        form = super()._construct_form(i, **kwargs)
+        form.instance.song = self.instance
+        return form
+
+
 class SlotInline(admin.TabularInline):
     model = Slot
-    extra = SLOT_COUNT
-    max_num = SLOT_COUNT
-    fields = ("position", "patch", "patch_core", "patch_full", "patch_name", "label")
-    readonly_fields = ("patch_core", "patch_full")
+    formset = SlotFormSet
+    fields = ("position", "on_page", "patch", "patch_core", "patch_full", "patch_name", "label")
+    readonly_fields = ("on_page", "patch_core", "patch_full")
     ordering = ("position",)
+
+    def get_max_num(self, request, obj=None, **kwargs):
+        """8 rows for a plain song; no limit once the song paginates."""
+        return None if obj is not None and obj.paginate else SLOT_COUNT
+
+    def get_extra(self, request, obj=None, **kwargs):
+        return PAGE_SIZE if obj is not None and obj.paginate else SLOT_COUNT
+
+    @admin.display(description="Page / switch")
+    def on_page(self, obj):
+        if not obj.pk or not obj.song.paginate:
+            return ""
+        return f"page {obj.page + 1}, switch {obj.switch}"
 
     @admin.display(description="CORE")
     def patch_core(self, obj):
@@ -60,7 +85,8 @@ class SlotInline(admin.TabularInline):
 
 @admin.register(Song)
 class SongAdmin(admin.ModelAdmin):
-    list_display = ("name", "artist", "slot_count", "updated")
+    list_display = ("name", "artist", "slot_count", "paginate", "updated")
+    list_filter = ("paginate",)
     search_fields = ("name", "artist")
     inlines = [SlotInline]
     actions = [refresh_song_names]

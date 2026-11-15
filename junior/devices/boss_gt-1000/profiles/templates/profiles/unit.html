@@ -15,6 +15,7 @@
     --led-mapped: #3b8bff;
     --led-on: #3ecf8e;
     --led-song: #3b8bff;
+    --led-page: #ff4a4a;
     --lcd-bg: #0b1a12;
     --lcd-fg: #9df5c2;
     --switch: radial-gradient(circle at 35% 30%, #d8dbe0, #8c9099 55%, #5a5e66);
@@ -62,6 +63,8 @@
   .lcd .song { font-size: 26px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .lcd .line2 { font-size: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .lcd .msg { font-size: 12px; opacity: .75; min-height: 1.2em; }
+  .lcd .song { display: flex; justify-content: space-between; gap: 16px; }
+  .lcd .page { font-size: 18px; font-weight: 400; opacity: .85; }
   .lcd .msg.err { color: #ff8b8b; opacity: 1; }
 
   /* ---- switch rows ---- */
@@ -85,6 +88,7 @@
     box-shadow: inset 0 1px 2px rgba(0,0,0,.8); transition: background .08s, box-shadow .08s; }
   .sw.mapped .led { background: var(--led-mapped); box-shadow: 0 0 8px var(--led-mapped), 0 0 18px rgba(59,139,255,.45); }
   .sw.on .led { background: var(--led-on); box-shadow: 0 0 10px var(--led-on), 0 0 22px rgba(62,207,142,.55); }
+  .sw.page .led { background: var(--led-page); box-shadow: 0 0 10px var(--led-page), 0 0 22px rgba(255,74,74,.55); }
   .sw .cap {
     width: 64px; height: 64px; border-radius: 50%;
     background: var(--switch);
@@ -118,7 +122,7 @@
   <div class="top">
     <div class="brand">BUSSTER <span>Jr</span></div>
     <div class="lcd" id="lcd">
-      <div class="song" id="lcd-song">—</div>
+      <div class="song"><span id="lcd-song">—</span><span class="page" id="lcd-page"></span></div>
       <div class="line2" id="lcd-label"></div>
       <div class="msg" id="lcd-msg"></div>
     </div>
@@ -141,34 +145,53 @@
 <script>
   const SONGS = {{ songs_json|safe }};
   const SLOT_COUNT = {{ slot_count }};
+  const PAGE_SIZE = {{ page_size }};
   const CSRF = "{{ csrf_token }}";
 
-  const state = { song: 0, active: null, busy: false };
+  // active = slot position index (0-based, across all pages); page = 0-based current page.
+  // Pagination is the exception: only songs with more than 8 patches turn it on.
+  const state = { song: 0, page: 0, active: null, busy: false };
   const el = (id) => document.getElementById(id);
 
   function song() { return SONGS[state.song] || null; }
+  function paginates() { const s = song(); return !!(s && s.paginate); }
+  function pageCount() { const s = song(); return paginates() ? Math.max(1, s.slots.length / PAGE_SIZE) : 1; }
+  // Slot position index behind switch i (0-based) on the current page.
+  function slotIndex(i) { return paginates() ? state.page * PAGE_SIZE + i : i; }
 
   function renderSwitches() {
     const s = song();
     const box = el("patches");
     box.innerHTML = "";
     for (let i = 0; i < SLOT_COUNT; i++) {
-      const slot = s ? s.slots[i] : null;
+      const isPageSwitch = paginates() && i === SLOT_COUNT - 1;
+      const idx = slotIndex(i);
+      const slot = !isPageSwitch && s ? s.slots[idx] : null;
       const b = document.createElement("button");
-      b.className = "sw" + (slot ? " mapped" : " empty") + (state.active === i ? " on" : "");
-      b.disabled = !slot;
+      b.className = "sw" + (isPageSwitch ? " page" : slot ? " mapped" : " empty") +
+        (!isPageSwitch && slot && state.active === idx ? " on" : "");
+      b.disabled = !slot && !isPageSwitch;
       b.dataset.index = i;
+      b.title = isPageSwitch ? "Next page" : "";
       b.innerHTML =
         `<span class="led"></span><span class="cap"></span>` +
-        `<span class="num">${i + 1}</span>`;
+        `<span class="num">${isPageSwitch ? "PAGE" : i + 1}</span>`;
       b.addEventListener("click", () => press(i));
       box.appendChild(b);
     }
   }
 
+  // Switch 8 on a paginating song: next page, wrapping. Sends nothing.
+  function nextPage() {
+    state.page = (state.page + 1) % pageCount();
+    renderSwitches();
+    renderLcd("");
+  }
+
   function renderLcd(msg, isErr) {
     const s = song();
     el("lcd-song").textContent = s ? s.name : "";
+    el("lcd-page").textContent = paginates() ? `${state.page + 1}/${pageCount()}` : "";
     const slot = s && state.active !== null ? s.slots[state.active] : null;
     el("lcd-label").textContent = slot ? slot.display : "";
     const m = el("lcd-msg");
@@ -186,6 +209,7 @@
   // Selecting a song always loads its switch 1 patch straight away.
   function loadSong() {
     state.active = null;
+    state.page = 0;
     renderSwitches();
     renderLcd("");
     press(0);
@@ -198,12 +222,14 @@
   }
 
   async function press(i) {
+    if (paginates() && i === SLOT_COUNT - 1) { nextPage(); return; }
     const s = song();
-    const slot = s && s.slots[i];
+    const idx = slotIndex(i);
+    const slot = s && s.slots[idx];
     if (!slot || state.busy) return;
     state.busy = true;
     document.body.dataset.busy = "1";
-    state.active = i;
+    state.active = idx;
     renderSwitches();
     renderLcd("");
     try {
