@@ -89,9 +89,19 @@ particular display size.
 
 ## GT-1000 exporter notes
 
-The GT-1000 / GT-1000CORE exporter builds `midi` from the 0-based patch index
-it stores, with the factory program map (MAP SEL = PROG, 125 patches per bank,
-measured 2026-11-14 on a GT-1000CORE):
+The GT-1000 app writes the file with:
+
+```bash
+uv run python manage.py export [path-or-directory | -] [--style core|full] [--channel N]
+```
+
+Run `manage.py refresh_names` first if patches have been renamed on the unit,
+so the names in the file are current. Both commands are described in the app's
+[README](../devices/boss_gt-1000/README.md).
+
+The exporter builds `midi` from the 0-based patch index it stores, with the
+factory program map (MAP SEL = PROG, 125 patches per bank, measured 2026-11-14
+on a GT-1000CORE):
 
 ```
 bank    = index // 125
