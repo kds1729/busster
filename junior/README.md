@@ -32,9 +32,9 @@ configures songs, reads patch names from the unit, refreshes them on demand,
 and exports `profiles.jsonl`. It also has a simulator page that stands in for
 the hardware.
 
-**Floor unit: designed, not built.** It is a folded sheet-metal hood on a wood
-base, with ten footswitches (eight patches on a gentle arc plus song up/down),
-one RGB LED per patch switch, a 5 inch 800x480 colour display on an ESP32-S3
+**Floor unit: designed, not built.** It is a one-bend aluminium chassis on
+wooden wedge ribs over a rigid base, with ten footswitches (eight patches on a gentle
+arc plus song up/down), one RGB LED per patch switch, a 5 inch 800x480 colour display on an ESP32-S3
 board (Sunton ESP32-8048S050C) running CircuitPython, and a 5-pin MIDI OUT jack.
 In the rare case of a song with more than eight patches, switch 8 pages through
 them seven at a time instead (red LED). The board mounts as a USB drive, so
