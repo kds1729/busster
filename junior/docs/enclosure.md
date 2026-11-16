@@ -161,6 +161,33 @@ short for more than one line; a 7" 800x480 (15.4 x 8.6) needed a 22 cm deep
 plate and crowded the switches. A TN panel is not acceptable: the unit is
 viewed from standing height at a steep angle and TN washes out.
 
+## Cost
+
+SendCutSend instant quote on the cut files, 2026-11-16, one unit, before
+shipping and tax:
+
+| Part | Material | Qty | Price |
+|---|---|---|---|
+| Chassis, laser cut, one bend, deburred | 5052 H32 aluminium, 1.6 mm (0.063") | 1 | $72.95 |
+| Rib | Baltic birch, 12 mm (0.472", their thickest) | 8 | $52.08 |
+| Base | Baltic birch, 12 mm | 1 | $74.30 |
+| | | | **$199.33** |
+
+The flat chassis without the bend was $59.18, so the bend costs about $14. A
+second chassis would be $50.27 each, and ribs fall to $5.93 each at ten. With
+12 mm plywood the outer ribs come out 36 mm thick rather than 38, which
+changes nothing in the layout. The base in 6.3 mm birch was $41.33, and
+cutting it locally from a bought panel would cost about $15, but the laser-cut
+12 mm base was chosen because it matches the ribs and the whole cradle looks
+right.
+
+A copper chassis (C110 half hard) was priced and rejected as too expensive,
+though it would look beautiful: $451.55 at 1.6 mm, $344.51 at 1.0 mm, which
+is too thin for the rib spans anyway.
+
+Not in the quote: thumb screws and inserts, the front rail strip, feet,
+sealer and oil, about $30 together.
+
 ## History
 
 Three earlier metal designs were dropped. A closed one-piece wrap, whose sheet
@@ -175,9 +202,8 @@ band, removed both problems.
 
 ## Open items
 
-1. Instant quote on the cut files in [enclosure/dxf](enclosure/dxf/)
-   (SendCutSend, which cuts both the aluminium and the plywood). The jack and
-   board holes in the chassis file are placeholders until item 3 is settled.
+1. Place the order with SendCutSend once the jack and board holes in the
+   chassis file stop being placeholders (item 3); see Cost above.
 2. Real module outline and mounting holes from the Sunton drawing, and how the
    module fastens to the underside of the face.
 3. Positions of the power, USB and MIDI OUT jacks and the circuit board on
