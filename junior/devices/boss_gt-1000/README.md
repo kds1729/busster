@@ -175,7 +175,7 @@ is read once, and only slots whose name changed are written.
 
 ```bash
 uv run python manage.py export                      # writes ./profiles.jsonl
-uv run python manage.py export /Volumes/CIRCUITPY   # straight onto the Pico's drive
+uv run python manage.py export /Volumes/CIRCUITPY   # straight onto the floor unit's drive
 uv run python manage.py export --style full         # U01-1 numbering on the display
 uv run python manage.py export -                    # print to the terminal
 ```
@@ -271,9 +271,9 @@ Decisions made during the proof of concept:
    (red LED, page shown on the display).
 4. **Microcontroller over Raspberry Pi.** Since nothing is edited on the device, a
    microcontroller's instant boot and immunity to power-loss corruption win over
-   a Pi's ability to run this Django app directly. The floor unit will be a
-   Raspberry Pi Pico running CircuitPython; it mounts as a USB drive, so uploading
-   is copying `profiles.jsonl` onto it.
+   a Pi's ability to run this Django app directly. The floor unit is an ESP32-S3
+   display board (Sunton ESP32-8048S050C) running CircuitPython; it mounts as a
+   USB drive, so uploading is copying `profiles.jsonl` onto it.
 5. **Device independence lives in the file, not the firmware.** This app is
    deliberately tied to the GT-1000, the unit on hand, and that is where the
    device knowledge belongs. The exporter writes the finished MIDI bytes for every

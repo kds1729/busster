@@ -132,8 +132,10 @@ busster/
 A smaller, working sibling project lives in [junior/](junior/). Instead of
 switching pedals, it switches patches on a multi-effects processor: dial up a
 song on a floor unit and eight footswitches are loaded with the patches that
-song needs. The laptop side (a Django app for the BOSS GT-1000) is complete;
-the floor unit, a Raspberry Pi Pico, is next. See [junior/README.md](junior/README.md).
+song needs. The laptop side (a Django app for the BOSS GT-1000) is complete and
+the floor unit, an ESP32-S3 display board in a one-bend aluminium chassis on
+wooden ribs, is designed; a breadboard of its electronics is next. See
+[junior/README.md](junior/README.md).
 
 ---
 

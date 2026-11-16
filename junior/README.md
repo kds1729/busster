@@ -12,7 +12,7 @@ only plays it back.
 ```
 junior/
 ├── devices/     one directory per supported effects processor
-├── docs/        the profiles file format and the floor-unit enclosure
+├── docs/        the profiles file format, the enclosure spec, drawing and cut files
 ├── midi/        MIDI transport shared by all devices
 ├── simulator/   the floor-unit simulator
 └── tests/       tests
@@ -33,14 +33,21 @@ and exports `profiles.jsonl`. It also has a simulator page that stands in for
 the hardware.
 
 **Floor unit: designed, not built.** It is a one-bend aluminium chassis on
-wooden wedge ribs over a rigid base, with ten footswitches (eight patches on a gentle
-arc plus song up/down), one RGB LED per patch switch, a 5 inch 800x480 colour display on an ESP32-S3
-board (Sunton ESP32-8048S050C) running CircuitPython, and a 5-pin MIDI OUT jack.
-In the rare case of a song with more than eight patches, switch 8 pages through
+laser-cut Baltic birch wedge ribs and base, with ten footswitches (eight
+patches on a gentle arc plus song up/down), one RGB LED per patch switch, a
+5 inch 800x480 colour display on an ESP32-S3 board (Sunton ESP32-8048S050C)
+running CircuitPython, and power, USB and 5-pin MIDI OUT jacks on the back. In
+the rare case of a song with more than eight patches, switch 8 pages through
 them seven at a time instead (red LED). The board mounts as a USB drive, so
 uploading a new configuration is copying `profiles.jsonl` onto it. The firmware
 reads that file and sends the MIDI bytes it contains; it knows nothing about any
-particular effects processor. See [docs/enclosure.md](docs/enclosure.md).
+particular effects processor.
+
+The enclosure is fully specified in [docs/enclosure.md](docs/enclosure.md),
+drawn to scale in [docs/enclosure/enclosure.html](docs/enclosure/enclosure.html),
+and its cut files are in [docs/enclosure/dxf/](docs/enclosure/dxf/), quoted at
+about $200 for one unit. Nothing is ordered yet: the next step is a breadboard
+of the electronics to prove the concept before any metal or wood is cut.
 
 The shared `midi/`, `simulator/` and `tests/` directories are placeholders
 until a second device makes extracting the common parts worthwhile.
