@@ -139,6 +139,33 @@ inside of the back next to the jacks, so it lifts out with the chassis.
 Wiring to the switches and LEDs runs along the underside of the face and
 through holes drilled in the inner ribs where it has to cross a bay.
 
+## Back panel
+
+Measured from the left edge as the player sees it, and up from the top of the
+base. The back is 52 x 8. The display module hangs behind the middle bay,
+right behind the bend, so nothing goes through the back there. The jacks are
+grouped in the wide right-hand bay, on one line 4.0 up, and the circuit board
+sits inside the back of the left-hand bay. Neither side was preferred; the
+right bay is simply the wider one.
+
+| Jack | From left | From right | Hole |
+|---|---|---|---|
+| DC power, 5.5 x 2.1 barrel | 45.8 | 6.2 | 8 mm (some jacks need 11) |
+| USB-C panel-mount extension to the Sunton board's port | 41.3 | 10.7 | 10 x 4 cutout, two 3.2 mm screws 18 mm apart |
+| MIDI OUT, 5-pin DIN | 36.3 | 15.7 | 16 mm, two 3.2 mm screws 22 mm apart |
+
+Power is nearest the end so the wall-wart cable hangs clear; the MIDI jack,
+with the biggest nut, has the most room, 3 cm from rib 3. The MIDI jack's
+mounting nut is also the chassis ground point.
+
+**Circuit board:** 5.0 x 4.0 with M3 mounting holes on a 4.4 x 3.4 pattern,
+centred 8.4 from the left and 4.0 up, on standoffs inside the back. These
+holes are placeholders in the cut file until the board is designed.
+
+**Wiring holes:** a 2 cm hole bored through each inner rib, 3 cm from its
+back face and 3.5 up, so the switch and LED wiring, the USB lead and the
+display's connections can cross between bays.
+
 ## Display and controller
 
 A 5 inch 800x480 IPS panel on an integrated ESP32-S3 board, the **Sunton
@@ -202,12 +229,11 @@ band, removed both problems.
 
 ## Open items
 
-1. Place the order with SendCutSend once the jack and board holes in the
+1. Place the order with SendCutSend once the board standoff holes in the
    chassis file stop being placeholders (item 3); see Cost above.
 2. Real module outline and mounting holes from the Sunton drawing, and how the
    module fastens to the underside of the face.
-3. Positions of the power, USB and MIDI OUT jacks and the circuit board on
-   the back.
+3. The circuit board design, which fixes its standoff holes in the back.
 4. The feet.
 5. Spill protection at the window and switch bushings: a clear acrylic sheet
    behind the window, O-rings under the switch nuts.

@@ -5,8 +5,8 @@ to this file. Every position comes from gen_layouts.py so the DXFs cannot drift
 from the drawing. DXF is R12 ASCII in millimetres: LINE and CIRCLE entities only,
 which every cut-and-bend shop's uploader reads.
 
-Layers: CUT (through cuts), BEND (bend line, not a cut), PLACEHOLDER (jack and
-board holes whose positions are not settled; delete or move before ordering).
+Layers: CUT (through cuts), BEND (bend line, not a cut), PLACEHOLDER (circuit
+board standoff holes, to confirm once the board is designed).
 """
 import contextlib
 import io
@@ -93,18 +93,25 @@ def chassis():
     d.rect(wx, wy, G.DISPLAY["disp_w"] * MM, G.DISPLAY["disp_h"] * MM)   # display window
     for x, y in G.layout_svg(G.DISPLAY)["anchors"]:                      # thumb screws
         d.circle(*face_xy(x, G.SLOPE - y), THUMB_SCREW_HOLE)
-    # Back: jacks and board, placeholders in the right-hand bay (ribs 3 and 4), centred on the back's height
-    yb = BACK / 2
-    d.circle(430, yb, DIN_HOLE, "PLACEHOLDER")
-    d.circle(419, yb, DIN_SCREW_HOLE, "PLACEHOLDER")
-    d.circle(441, yb, DIN_SCREW_HOLE, "PLACEHOLDER")
-    d.circle(465, yb, DC_JACK_HOLE, "PLACEHOLDER")
-    d.rect(385 - USB_CUTOUT[0] / 2, yb - USB_CUTOUT[1] / 2, *USB_CUTOUT, "PLACEHOLDER")
-    d.circle(376, yb, USB_SCREW_HOLE, "PLACEHOLDER")
-    d.circle(394, yb, USB_SCREW_HOLE, "PLACEHOLDER")
-    for bx in (170, 220):
-        for by in (20, 60):
-            d.circle(bx, by, BOARD_HOLE, "PLACEHOLDER")
+    # Back: jacks on the decided line (G.JACKS, in cm from the left edge; y up from the base top)
+    yb = G.JACK_Y * MM
+    for label, x, hole in G.JACKS:
+        x *= MM
+        if "DIN" in label:
+            d.circle(x, yb, DIN_HOLE)
+            d.circle(x - 11, yb, DIN_SCREW_HOLE)
+            d.circle(x + 11, yb, DIN_SCREW_HOLE)
+        elif "USB" in label:
+            d.rect(x - USB_CUTOUT[0] / 2, yb - USB_CUTOUT[1] / 2, *USB_CUTOUT)
+            d.circle(x - 9, yb, USB_SCREW_HOLE)
+            d.circle(x + 9, yb, USB_SCREW_HOLE)
+        else:
+            d.circle(x, yb, DC_JACK_HOLE)
+    # Circuit board standoffs inside the back, left bay: placeholder until the board is designed
+    bd = G.BOARD
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            d.circle((bd["cx"] + sx * bd["hole_dx"] / 2) * MM, (bd["cy"] + sy * bd["hole_dy"] / 2) * MM, BOARD_HOLE, "PLACEHOLDER")
     return d
 
 
@@ -175,7 +182,7 @@ line, circle {{ fill: none; stroke-width: 1.2; vector-effect: non-scaling-stroke
 </style>
 <main>
 <div><h1>Busster Junior Cut Files</h1>
-<p>What the three DXF files contain, rendered from the files themselves. Millimetres. Black is a through cut, the dashed orange line is the bend (not a cut), green dashed holes are placeholders for the jacks and the circuit board, to be moved or deleted before ordering.</p>
+<p>What the three DXF files contain, rendered from the files themselves. Millimetres. Black is a through cut, the dashed orange line is the bend (not a cut), green dashed holes are placeholders for the circuit board standoffs, to be confirmed once the board is designed.</p>
 <p class="legend"><span><i style="border-color: var(--cut)"></i>CUT</span><span><i style="border-color: var(--bend); border-top-style: dashed"></i>BEND</span><span><i style="border-color: var(--ph); border-top-style: dashed"></i>PLACEHOLDER</span></p></div>
 {svg_of(ch, W, FLAT_H, f"chassis.dxf: flat pattern {W:.0f} x {FLAT_H:.1f} mm, 1.5 or 2 mm 5052 aluminium, one bend of {G.BEND_DEG:.1f} degrees along the dashed line (back below it, sloped face above it, bent so the back goes down). Quantity 1.")}
 {svg_of(rb, rib_len, BACK, f"rib.dxf: {rib_len:.0f} x {BACK:.0f} mm wedge, {h_front:.1f} mm high at the front, 3 mm chamfer at the top back corner. 1/2 inch Baltic birch, quantity 8: three glued up for each outer rib, one for each inner rib.")}

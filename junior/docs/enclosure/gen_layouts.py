@@ -35,6 +35,16 @@ ANCHOR_BACK = 16.5  # thumb screws up from the front edge
 SW_BODY_R = 0.9     # footswitch body radius below the panel, plus a little
 SONG_X = (MARGIN + 0.5, MARGIN + 6.5)  # song down / up switches from the left edge
 
+# ---- back panel (cm, from the left edge and up from the base top) ----
+JACK_Y = 4.0          # all jacks on one line, mid-height of the 8 cm back
+JACKS = [             # (label, x, hole description); right-hand bay, outer rib face at WIDTH - RIB_T_OUTER
+    ("DC 5.5x2.1", 45.8, "8 mm"),
+    ("USB-C", 41.3, "10 x 4 cutout, M3 screws 18 mm apart"),
+    ("MIDI OUT DIN", 36.3, "16 mm, M3 screws 22 mm apart"),
+]
+BOARD = dict(cx=8.4, cy=4.0, w=5.0, h=4.0, hole_dx=4.4, hole_dy=3.4)  # inside the back, left bay, M3 standoffs
+RIB_WIRE_HOLE = dict(d=2.0, from_back=3.0, up=3.5)  # bored through each inner rib for the wiring
+
 DISPLAY = dict(
     disp_w=11.0, disp_h=6.7, mod_w=12.1, mod_h=7.6, act_w=10.8, act_h=6.5,
     panel='5" 800x480', boards="Sunton ESP32-8048S050C",
@@ -230,6 +240,56 @@ def profile_svg():
     return f'<svg viewBox="{vb}" xmlns="http://www.w3.org/2000/svg" role="img">{prof}</svg>', slope_len, math.degrees(ang)
 
 
+def back_svg(ribs):
+    """The back panel seen from behind the unit: 52 wide, 8 high above the base."""
+    H = BACK_H
+    b = [f'<rect class="base" x="0" y="{c(H)}" width="{c(WIDTH)}" height="{c(BASE_T)}"/>',
+         f'<rect class="plate" x="0" y="0" width="{c(WIDTH)}" height="{c(H)}"/>']
+    # seen from behind, left and right swap: mirror x
+    def mx(x):
+        return WIDTH - x
+    for i, (x0, t) in enumerate(ribs):
+        b.append(f'<rect class="rib" x="{c(mx(x0 + t))}" y="0" width="{c(t)}" height="{c(H)}"/>')
+        b.append(f'<text class="note" x="{c(mx(x0 + t / 2))}" y="{c(H - 0.4)}" text-anchor="middle">rib {i + 1}</text>')
+        if i in (1, 2):
+            wx = mx(x0 + t / 2)
+            b.append(f'<circle class="module" cx="{c(wx)}" cy="{c(H - RIB_WIRE_HOLE["up"])}" r="{c(RIB_WIRE_HOLE["d"] / 2)}"/>')
+    # display module behind the middle bay, hanging from the sloped face just past the bend
+    mod_w, mod_h = DISPLAY["mod_w"], 1.5
+    mod_x = pts_global[2][0] + DISPLAY["disp_w"] / 2 - mod_w / 2
+    b.append(f'<rect class="module" x="{c(mx(mod_x + mod_w))}" y="{c(0.3)}" width="{c(mod_w)}" height="{c(mod_h)}"/>')
+    b.append(f'<text class="note" x="{c(mx(mod_x + mod_w / 2))}" y="{c(0.3 + mod_h + 0.9)}" text-anchor="middle">display module hangs here</text>')
+    # jacks
+    for label, x, hole in JACKS:
+        r = 0.8 if "DIN" in label else (0.4 if "DC" in label else 0.5)
+        b.append(f'<circle class="sw" cx="{c(mx(x))}" cy="{c(H - JACK_Y)}" r="{c(r)}"/>')
+        if "DIN" in label:
+            for dx in (-1.1, 1.1):
+                b.append(f'<circle class="anchor" cx="{c(mx(x + dx))}" cy="{c(H - JACK_Y)}" r="{c(0.16)}"/>')
+        if "USB" in label:
+            b.append(f'<rect class="sw" x="{c(mx(x) - c(0.5))}" y="{c(H - JACK_Y - 0.2)}" width="{c(1.0)}" height="{c(0.4)}"/>')
+            for dx in (-0.9, 0.9):
+                b.append(f'<circle class="anchor" cx="{c(mx(x + dx))}" cy="{c(H - JACK_Y)}" r="{c(0.16)}"/>')
+        b.append(f'<text class="swlabel" x="{c(mx(x))}" y="{c(H - JACK_Y - 1.4)}" style="font-size:7px">{label}</text>')
+    # circuit board inside the back, left bay (shown dashed: it is on the far side of the sheet)
+    bd = BOARD
+    b.append(f'<rect class="module" x="{c(mx(bd["cx"] + bd["w"] / 2))}" y="{c(H - bd["cy"] - bd["h"] / 2)}" width="{c(bd["w"])}" height="{c(bd["h"])}"/>')
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            b.append(f'<circle class="anchor" cx="{c(mx(bd["cx"] + sx * bd["hole_dx"] / 2))}" cy="{c(H - bd["cy"] - sy * bd["hole_dy"] / 2)}" r="{c(0.16)}"/>')
+    b.append(f'<text class="note" x="{c(mx(bd["cx"]))}" y="{c(H - bd["cy"] + bd["h"] / 2 + 0.9)}" text-anchor="middle">board inside</text>')
+    # dimensions: jack centres from the right-hand edge of the unit (= left edge of this view)
+    b.append(dim_h(0, mx(JACKS[0][1]), -0.9, f"{WIDTH - JACKS[0][1]:.1f}"))
+    b.append(dim_h(0, mx(JACKS[1][1]), -1.8, f"{WIDTH - JACKS[1][1]:.1f}"))
+    b.append(dim_h(0, mx(JACKS[2][1]), -2.7, f"{WIDTH - JACKS[2][1]:.1f}"))
+    b.append(dim_v(WIDTH + 1.2, H - JACK_Y, H, f"{JACK_Y:g}"))
+    b.append(dim_v(-1.5, 0, H, f"{H:g}"))
+    b.append(f'<text class="note" x="{c(0.3)}" y="{c(H + BASE_T + 0.9)}">seen from behind: the player\'s right is on the left</text>')
+    b.append(f'<text class="note" x="{c(WIDTH - 0.3)}" y="{c(-3.2)}" text-anchor="end">bend line along the top edge</text>')
+    vb = f"{c(-3.5)} {c(-4.2)} {c(WIDTH + 6.5)} {c(H + BASE_T + 6)}"
+    return f'<svg viewBox="{vb}" xmlns="http://www.w3.org/2000/svg" role="img">{"".join(b)}</svg>'
+
+
 LEGEND = ('<div class="legend"><span class="lf">6 cm foot zone around each switch</span>'
           '<span class="lrgb">RGB LED (5 mm addressable)</span>'
           '<span class="lw">wood rib under the panel</span>'
@@ -239,6 +299,8 @@ LEGEND = ('<div class="legend"><span class="lf">6 cm foot zone around each switc
 v = DISPLAY
 L = layout_svg(v)
 prof, slope_len, ang = profile_svg()
+pts_global = L["pts"]
+back = back_svg(L["ribs"])
 pts, ribs, anchors = L["pts"], L["ribs"], L["anchors"]
 depth = L["depth"]
 rows = "".join(
@@ -252,6 +314,11 @@ rib_rows = "".join(
 anchor_rows = "".join(
     f"<tr><td>{n}</td><td>{x:.1f}</td><td>{depth - y:.1f}</td></tr>"
     for n, (x, y) in zip(("front left", "back left", "front right", "back right"), anchors)
+)
+
+jack_rows = "".join(
+    f"<tr><td>{label}</td><td>{x:.1f}</td><td>{WIDTH - x:.1f}</td><td>{JACK_Y:g}</td><td>{hole}</td></tr>"
+    for label, x, hole in JACKS
 )
 
 html = f"""<title>Busster Junior Enclosure</title>
@@ -363,6 +430,16 @@ details summary:focus-visible {{ outline: 2px solid var(--accent); }}
 {anchor_rows}
 </table></div>
 </details>
+</section>
+<section>
+<div class="eyebrow">Back</div>
+<h2>Back panel, {WIDTH:g} x {BACK_H:g} cm, seen from behind</h2>
+{back}
+<p>All three jacks sit on one line {JACK_Y:g} cm above the base, in the wide bay between ribs 3 and 4, which is the player's right. Power is nearest the end so the wall-wart cable hangs clear, and the MIDI jack, with the biggest nut, has the most room. The USB-C jack is a panel-mount extension lead to the Sunton board's own port in the middle bay. The display module hangs behind the middle bay, so nothing goes through the back there. The circuit board sits inside the back of the left bay on M3 standoffs, {BOARD["w"]:g} x {BOARD["h"]:g} cm with holes {BOARD["hole_dx"]:g} x {BOARD["hole_dy"]:g} apart. Each inner rib gets a {RIB_WIRE_HOLE["d"]:g} cm hole bored {RIB_WIRE_HOLE["from_back"]:g} cm from its back face and {RIB_WIRE_HOLE["up"]:g} cm up, for the wiring between bays.</p>
+<div class="wrap"><table>
+<tr><th>Jack</th><th>From the left edge (player's view)</th><th>From the right edge</th><th>Up from the base</th><th>Hole</th></tr>
+{jack_rows}
+</table></div>
 </section>
 <section>
 <div class="eyebrow">Shared</div>
